@@ -5,7 +5,7 @@ Solución .NET 8 para la gestión de citas médicas. Todo el código (identifica
 ## Proyectos y capas
 
 - `AgendaMedica.Domain` — entidades, enums, excepciones, interfaces de repositorios/servicios. Sin dependencias.
-- `AgendaMedica.Infrastructure` — EF Core 8 + SQL Server, repositorios, integración Microsoft Graph (Teams), notificaciones (SMTP/WhatsApp/SMS), jobs en segundo plano.
+- `AgendaMedica.Infrastructure` — EF Core 8 + PostgreSQL (Supabase), repositorios, integración Microsoft Graph (Teams), notificaciones (SMTP/WhatsApp/SMS), jobs en segundo plano.
 - `AgendaMedica.Application` — MediatR commands/queries/handlers. **Quirk: referencia a Infrastructure** (no es Clean Architecture estricto); no lo "corrijas". Los handlers dependen de las interfaces de `Domain` (`IUnitOfWork`, `INotificacionService`, etc.), no de implementaciones.
 - `AgendaMedica.Api` — controladores, Swagger, middleware de excepciones.
 
@@ -21,17 +21,27 @@ Solución .NET 8 para la gestión de citas médicas. Todo el código (identifica
 
 - Build/verify: `dotnet build AgendaMedica.sln` (SDK 10 local compila net8.0 sin advertencias).
 - Ejecutar: `dotnet run --project AgendaMedica.Api` — perfil `http` en `http://localhost:5047/swagger` (ver `launchSettings.json`).
-- No hay proyectos de test, ni migrations EF, ni CI/lint configurados.
+- Frontend: `npm.cmd run build` (tsc -b && vite build) en `frontend/`. Dev server Vite en `http://localhost:5173` (sin proxy; baseURL API en `frontend/src/lib/api.ts`).
+- No hay proyectos de test ni CI/lint configurados.
 
-## Contexto de trabajo vigente (branch `feature/ui-ux`)
+## Estado del roadmap UI/UX (branch `feature/ui-ux`)
 
-- **Roadmap y checklist de UI/UX de la agenda:** `Contexto_Agenda_UIUX.md` (raíz del repo). Define las 3 pantallas (Asignación / Revisión / Mantenimiento), los GAPS (G1-G20) respecto al código actual y la hoja de ruta en 4 fases.
+- **Roadmap y checklist:** `Contexto_Agenda_UIUX.md` (raíz del repo). Define las 3 pantallas (Asignación / Revisión / Mantenimiento), los GAPS (G1-G20) y la hoja de ruta en 4 fases.
 - **Documento de requerimientos fuente:** `docs/PreContexto_Agenda_UIUX.md`.
-- **Regla:** antes de tocar pantallas de agenda (AgendaView, NuevaCitaView, o nuevos endpoints de citas/disponibilidad), revisar ambos archivos y alinearse con la fase en curso.
+- **FASE 1 COMPLETADA** (commit `2d54647`): entidad `DisponibilidadProfesional` + CRUD `v1/disponibilidad`, slots libres en `GET /v1/citas/disponibilidad` (cruza plantilla − citas), `estadoBadge` con estados 1-7 y timeline diaria multi-recurso en `AgendaView` (CSS grid, selección múltiple de profesionales).
+- **SIGUIENTE: FASE 2** (itens 5-9 del roadmap): calendario con pestañas diario/semanal/mensual/lista, panel lateral de detalle con acciones del ciclo de vida + historial, filtros por estado, menú contextual de 3 puntos, buscador "próximo turno disponible".
+- **Regla:** antes de tocar pantallas de agenda (AgendaView, NuevaCitaView, o nuevos endpoints de citas/disponibilidad), revisar `Contexto_Agenda_UIUX.md` y `docs/PreContexto_Agenda_UIUX.md` y alinearse con la fase en curso.
 
 ## Gotchas operativos
 
-- **El esquema de la BD no se genera desde el código** (no hay `EnsureCreated` ni `Migrate`, no existe carpeta `Migrations`). La BD SQL Server debe existir. La connection string `AgendaMedica` apunta a `Server=EII-54VK7TKB` con Windows auth (máquina local del dev). Al arrancar solo verifica `CanConnectAsync`.
+- **BD PostgreSQL en Supabase** (antes se usó SQL Server local; hoy la app apunta a Supabase). `appsettings.json` tiene la connection string real `SupabaseConnection` (pooler de Supabase, SSL required). **No commitear la contraseña real**: el archivo en git está sanitizado (`Password=SUSTITUIR_POR_CONTRASENA`) y el working copy mantiene la real vía `git update-index --skip-worktree`.
+- **Migrations EF**: la carpeta `Migrations` existe. La migración inicial `20260805072936_InicializacionPostgresLimpia` ya está aplicada en Supabase (registrada en `__EFMigrationsHistory`). La Fase 1 añadió `20260809060015_AgregarDisponibilidadProfesional`, reescrita manualmente a solo CreateTable (el snapshot previo estaba desincronizado y generó drops/alters indeseados) y **aplicada a Supabase con DDL directo + INSERT en `__EFMigrationsHistory`**, no con `dotnet ef database update`. Para agregar columnas/tablas nuevas prefiere DDL manual idempotente (o `migrations add` + revisar/limpiar el diff) y registrar en la tabla de historial. Verificar siempre con `GET /v1/disponibilidad` y `GET /v1/citas/disponibilidad`.
 - **Jobs en segundo plano se inician con la app**: `OutboxProcessor` (sincroniza citas a Teams vía Graph cada 15s, reintenta hasta 5 veces con backoff exponencial) y `RecordatorioProcessor` (recordatorios cada hora). Son resilientes y loguean warnings; no deben romper el arranque si Teams/notificaciones no están configurados.
-- **Integraciones externas con placeholders**: `AzureAd`, `Graph`, `Smtp`, `WhatsApp`, `Sms` en `appsettings.json` son credenciales de ejemplo. El desarrollo local funciona solo con SQL; no rellenes ni elimines esas secciones.
+- **Integraciones externas con placeholders**: `AzureAd`, `Graph`, `Smtp`, `WhatsApp`, `Sms` en `appsettings.json` son credenciales de ejemplo. El desarrollo local funciona solo con Supabase; no rellenes ni elimines esas secciones.
 - En builds `DEBUG`, EF habilita `EnableSensitiveDataLogging` y loguea SQL a consola.
+
+## Punto de reanudo (Estado de la sesión)
+
+- Fase 1 del roadmap UI/UX completada y committeada: commit `2d54647` en `feature/ui-ux`. Todo el trabajo está pusheado a `origin/feature/ui-ux` (repo `https://github.com/enrique-movilla/AgendaMedica`).
+- **Próximo paso documentado:** Fase 2 (puede arrancarse leyendo `Contexto_Agenda_UIUX.md` §3 Fase 2). La API se puede probar en `http://localhost:5047/swagger` y el frontend en `http://localhost:5173`.
+- Pendientes no bloqueados: agregar `DisponibilidadProfesional` a `AgendaView` como vista (CRUD de plantillas) y un `Menu` de 3 puntos en la timeline (item 8 de Fase 2).

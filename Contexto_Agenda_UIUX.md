@@ -59,11 +59,13 @@
 
 ## 3. Hoja de ruta propuesta (fases)
 
-### Fase 1 — Fundamentos de la agenda (núcleo)
+### Fase 1 — Fundamentos de la agenda (núcleo) ✅ COMPLETADA (commit `2d54647`)
 1. **Plantilla de disponibilidad por profesional** (nueva entidad/CRUD): días, hora desde/hasta, duración estándar (15/20/30 min), sede/consultorio.
 2. **Endpoint de disponibilidad real**: calcular slots libres (cruzar plantilla − citas existentes) `GET /v1/citas/disponibilidad → { slots }`.
 3. **Colores por estado completos** (1-7) reutilizables en UI.
 4. **Timeline multi-recurso** (línea de tiempo diaria con filas por profesional; sin librería nueva si el deadline lo exige — CSS grid sobre datos de `agenda-dia`).
+
+_Cierre F1: entidad `DisponibilidadProfesional` + `DiaSemana`, CRUD `v1/disponibilidad`, slots libres en `GET /v1/citas/disponibilidad`, `estadoBadge` 1-7 en `App.tsx`, timeline diaria multi-recurso en `AgendaView`. Migración aplicada a Supabase con DDL manual (ver AGENTS.md)._
 
 ### Fase 2 — Interacción y consulta
 5. **Vista de calendario con pestañas** diario/semanal/mensual/lista (evaluar FullCalendar vs. RBC).
