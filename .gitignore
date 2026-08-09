@@ -1,8 +1,9 @@
-# ── .NET ──
+# ── .NET / binarios ──
 bin/
 obj/
 *.user
 *.suo
+*.Backup.tmp
 
 # ── IDE / editor ──
 .vs/
@@ -26,6 +27,6 @@ appsettings.Development.local.json
 .env
 *.local.json
 
-# ── Node ── (raíz del frontend ya trae su propio .gitignore)
+# ── Node ── (el frontend trae su propio .gitignore)
 node_modules/
 dist/
