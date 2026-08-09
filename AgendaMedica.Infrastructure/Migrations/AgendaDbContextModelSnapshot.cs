@@ -135,7 +135,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp(0)")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<DateTime>("FechaHora")
                         .HasColumnType("timestamp(0)");
@@ -187,7 +187,7 @@ namespace AgendaMedica.Infrastructure.Migrations
 
                     b.HasIndex("TeamsEventId")
                         .HasDatabaseName("IX_Cita_TeamsEventId")
-                        .HasFilter("[TeamsEventId] IS NOT NULL");
+                        .HasFilter("\"TeamsEventId\" IS NOT NULL");
 
                     b.HasIndex("TipoCitaId");
 
@@ -206,7 +206,7 @@ namespace AgendaMedica.Infrastructure.Migrations
 
                     b.ToTable("Cita", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Cita_Fechas", "[FechaHoraFin] > [FechaHora]");
+                            t.HasCheckConstraint("CK_Cita_Fechas", "\"FechaHoraFin\" > \"FechaHora\"");
                         });
                 });
 
@@ -233,6 +233,62 @@ namespace AgendaMedica.Infrastructure.Migrations
                         .HasDatabaseName("IX_Departamento_Nombre");
 
                     b.ToTable("Departamento", (string)null);
+                });
+
+            modelBuilder.Entity("AgendaMedica.Domain.Entities.DisponibilidadProfesional", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("ConsultorioSala")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<byte>("DiaSemana")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("DuracionMinutos")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<TimeSpan>("HoraFin")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan>("HoraInicio")
+                        .HasColumnType("time");
+
+                    b.Property<int>("ProfesionalId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SedeId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfesionalId", "DiaSemana")
+                        .HasDatabaseName("IX_Disponibilidad_Profesional_Dia");
+
+                    b.ToTable("DisponibilidadProfesional", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Disponibilidad_Duracion", "\"DuracionMinutos\" BETWEEN 5 AND 480");
+
+                            t.HasCheckConstraint("CK_Disponibilidad_Rango", "\"HoraFin\" > \"HoraInicio\"");
+                        });
                 });
 
             modelBuilder.Entity("AgendaMedica.Domain.Entities.Especialidad", b =>
@@ -318,7 +374,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCambio")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp(0)")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<string>("Motivo")
                         .HasMaxLength(500)
@@ -425,7 +481,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp(0)")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<byte>("Intentos")
                         .ValueGeneratedOnAdd()
@@ -447,7 +503,7 @@ namespace AgendaMedica.Infrastructure.Migrations
 
                     b.HasIndex("Estado", "Canal", "Intentos")
                         .HasDatabaseName("IX_Notificacion_Pendiente")
-                        .HasFilter("[Estado] = 'Pendiente'");
+                        .HasFilter("\"Estado\" = 'Pendiente'");
 
                     b.ToTable("NotificacionLog", (string)null);
                 });
@@ -470,7 +526,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp(0)")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<DateTime?>("FechaProcesado")
                         .HasColumnType("timestamp(0)");
@@ -483,7 +539,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<string>("Payload")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("jsonb")
                         .HasDefaultValue("{}");
 
                     b.Property<bool>("Procesado")
@@ -506,7 +562,7 @@ namespace AgendaMedica.Infrastructure.Migrations
 
                     b.HasIndex("Procesado", "Intentos")
                         .HasDatabaseName("IX_Outbox_Pendiente")
-                        .HasFilter("[Procesado] = 0");
+                        .HasFilter("\"Procesado\" = false");
 
                     b.ToTable("OutboxMensaje", (string)null);
                 });
@@ -543,11 +599,11 @@ namespace AgendaMedica.Infrastructure.Migrations
 
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp without time zone");
 
                     b.Property<DateOnly>("FechaNacimiento")
                         .HasColumnType("date");
@@ -590,9 +646,9 @@ namespace AgendaMedica.Infrastructure.Migrations
 
                     b.ToTable("Paciente", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Paciente_FechaNac", "[FechaNacimiento] <= CAST(GETDATE() AS DATE)");
+                            t.HasCheckConstraint("CK_Paciente_FechaNac", "\"FechaNacimiento\" <= CURRENT_DATE");
 
-                            t.HasCheckConstraint("CK_Paciente_Sexo", "[Sexo] IN ('M','F')");
+                            t.HasCheckConstraint("CK_Paciente_Sexo", "\"Sexo\" IN ('M','F')");
                         });
                 });
 
@@ -628,11 +684,11 @@ namespace AgendaMedica.Infrastructure.Migrations
 
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("NombresCompletos")
                         .IsRequired()
@@ -914,6 +970,17 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Navigation("TipoCita");
 
                     b.Navigation("TipoUsuario");
+                });
+
+            modelBuilder.Entity("AgendaMedica.Domain.Entities.DisponibilidadProfesional", b =>
+                {
+                    b.HasOne("AgendaMedica.Domain.Entities.Profesional", "Profesional")
+                        .WithMany()
+                        .HasForeignKey("ProfesionalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Profesional");
                 });
 
             modelBuilder.Entity("AgendaMedica.Domain.Entities.HistorialEstadoCita", b =>

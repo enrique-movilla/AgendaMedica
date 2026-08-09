@@ -4,6 +4,7 @@
 // ============================================================
 
 using AgendaMedica.Application.DTOs;
+using AgendaMedica.Domain.Entities;
 using AgendaMedica.Domain.Enums;
 using AgendaMedica.Domain.Exceptions;
 using AgendaMedica.Domain.Interfaces;   // ← INotificacionService ahora en Domain
@@ -208,5 +209,108 @@ public class CambiarEstadoCitaHandler
         }
 
         return cita.ToDto();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  DISPONIBILIDAD PROFESIONAL (plantillas horarias) — Fase 1
+// ══════════════════════════════════════════════════════════════
+public record CrearDisponibilidadCommand(
+    int      ProfesionalId,
+    byte     DiaSemana,
+    string   HoraInicio,
+    string   HoraFin,
+    short    DuracionMinutos,
+    int?     SedeId,
+    string?  ConsultorioSala
+) : IRequest<DisponibilidadProfesionalDto>;
+
+public class CrearDisponibilidadHandler
+    : IRequestHandler<CrearDisponibilidadCommand, DisponibilidadProfesionalDto>
+{
+    private readonly IUnitOfWork _uow;
+    public CrearDisponibilidadHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<DisponibilidadProfesionalDto> Handle(
+        CrearDisponibilidadCommand request, CancellationToken ct)
+    {
+        if (request.DiaSemana is < 1 or > 7)
+            throw new DomainException("El día de la semana debe estar entre 1 (lunes) y 7 (domingo).");
+
+        var profesional = await _uow.Profesionales.ObtenerPorIdAsync(request.ProfesionalId, ct)
+            ?? throw new EntidadNoEncontradaException("Profesional", request.ProfesionalId);
+
+        var entidad = new DisponibilidadProfesional(
+            profesionalId: request.ProfesionalId,
+            d: (DiaSemana)request.DiaSemana,
+            horaInicio: TimeOnly.Parse(request.HoraInicio),
+            horaFin: TimeOnly.Parse(request.HoraFin),
+            duracionMinutos: request.DuracionMinutos,
+            sedeId: request.SedeId,
+            consultorioSala: request.ConsultorioSala);
+
+        await _uow.Disponibilidades.AgregarAsync(entidad, ct);
+        await _uow.GuardarAsync(ct);
+        return entidad.ToDisponibilidadDto();
+    }
+}
+
+public record ActualizarDisponibilidadCommand(
+    int      Id,
+    byte     DiaSemana,
+    string   HoraInicio,
+    string   HoraFin,
+    short    DuracionMinutos,
+    int?     SedeId,
+    string?  ConsultorioSala
+) : IRequest<DisponibilidadProfesionalDto>;
+
+public class ActualizarDisponibilidadHandler
+    : IRequestHandler<ActualizarDisponibilidadCommand, DisponibilidadProfesionalDto>
+{
+    private readonly IUnitOfWork _uow;
+    public ActualizarDisponibilidadHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<DisponibilidadProfesionalDto> Handle(
+        ActualizarDisponibilidadCommand request, CancellationToken ct)
+    {
+        if (request.DiaSemana is < 1 or > 7)
+            throw new DomainException("El día de la semana debe estar entre 1 (lunes) y 7 (domingo).");
+
+        var entidad = await _uow.Disponibilidades.ObtenerPorIdAsync(request.Id, ct)
+            ?? throw new EntidadNoEncontradaException("DisponibilidadPeriodo", request.Id);
+
+        entidad.Actualizar(
+            d: (DiaSemana)request.DiaSemana,
+            horaInicio: TimeOnly.Parse(request.HoraInicio),
+            horaFin: TimeOnly.Parse(request.HoraFin),
+            duracionMinutos: request.DuracionMinutos,
+            sedeId: request.SedeId,
+            consultorioSala: request.ConsultorioSala);
+
+        _uow.Disponibilidades.Actualizar(entidad);
+        await _uow.GuardarAsync(ct);
+        return entidad.ToDisponibilidadDto();
+    }
+}
+
+public record InactivarDisponibilidadCommand(int Id) : IRequest<bool>;
+
+public class InactivarDisponibilidadHandler
+    : IRequestHandler<InactivarDisponibilidadCommand, bool>
+{
+    private readonly IUnitOfWork _uow;
+    public InactivarDisponibilidadHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<bool> Handle(
+        InactivarDisponibilidadCommand request, CancellationToken ct)
+    {
+        var entidad = await _uow.Disponibilidades.ObtenerPorIdAsync(request.Id, ct)
+            ?? throw new EntidadNoEncontradaException("DisponibilidadPeriodo", request.Id);
+
+        entidad.Inactivar();
+        _uow.Disponibilidades.Actualizar(entidad);
+        await _uow.GuardarAsync(ct);
+        return true;
     }
 }

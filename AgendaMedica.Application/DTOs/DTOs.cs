@@ -52,10 +52,34 @@ public record DisponibilidadDto(
     string           NombreProfesional,
     DateOnly         Fecha,
     int              DuracionSlotMinutos,
-    List<SlotOcupadoDto> SlotsOcupados
+    List<SlotOcupadoDto> SlotsOcupados,
+    List<SlotLibreDto>   SlotsLibres        // ← Fase 1: slots disponibles
 );
 
 public record SlotOcupadoDto(string HoraInicio, string HoraFin, string Estado);
+
+public record SlotLibreDto(
+    string  HoraInicio,
+    string  HoraFin,
+    bool    Disponible,
+    string? ConsultorioSala
+);
+
+// ── Plantilla de disponibilidad de un profesional ─────────────
+public record DisponibilidadProfesionalDto(
+    int     Id,
+    int     ProfesionalId,
+    string  NombreProfesional,
+    byte    DiaSemana,
+    string  NombreDia,
+    string  HoraInicio,
+    string  HoraFin,
+    short   DuracionMinutos,
+    int?    SedeId,
+    string? Sede,
+    string? ConsultorioSala,
+    bool    Activo
+);
 
 // ── Paciente resumen ──────────────────────────────────────────
 public record PacienteResumenDto(

@@ -71,10 +71,14 @@ public static class InfrastructureServiceExtensions
         // ── UnitOfWork ────────────────────────────────────────
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        // ── Repositorios principales ──────────────────────────
+// ── Repositorios principales ──────────────────────────
         services.AddScoped<ICitaRepositorio,         CitaRepositorio>();
         services.AddScoped<IPacienteRepositorio,     PacienteRepositorio>();
         services.AddScoped<IProfesionalRepositorio,  ProfesionalRepositorio>();
+
+        // ── Plantillas de disponibilidad ──────────────────────
+        services.AddScoped<IDisponibilidadRepositorio,
+                           DisponibilidadProfesionalRepositorio>();
 
         // ── Catálogos propios ─────────────────────────────────
         services.AddScoped<IAseguradoraRepositorio,  AseguradoraRepositorio>();

@@ -46,10 +46,13 @@ function msgError(e: unknown): string {
 
 function estadoBadge(estadoId: number) {
   const clases: Record<number, string> = {
-    1: 'bg-sky-50 text-sky-800 border-sky-300',
-    2: 'bg-emerald-50 text-emerald-800 border-emerald-300',
-    3: 'bg-amber-50 text-amber-800 border-amber-300',
-    4: 'bg-rose-50 text-rose-800 border-rose-300',
+    1: 'bg-sky-50 text-sky-800 border-sky-300', // Programada
+    2: 'bg-emerald-50 text-emerald-800 border-emerald-300', // Confirmada
+    3: 'bg-amber-50 text-amber-800 border-amber-300', // EnAtencion
+    4: 'bg-teal-50 text-teal-800 border-teal-300', // Realizada
+    5: 'bg-rose-50 text-rose-800 border-rose-300', // Cancelada
+    6: 'bg-slate-100 text-slate-600 border-slate-300', // No asistio
+    7: 'bg-violet-50 text-violet-800 border-violet-300', // Reprogramada
   }
   return clases[estadoId] ?? 'bg-slate-100 text-slate-700 border-slate-300'
 }
@@ -243,117 +246,282 @@ export default function App() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  AGENDA DEL DÍA
+//  AGENDA DEL DÍA — Timeline multi-recurso (Fase 1)
 // ══════════════════════════════════════════════════════════════
+type FilaAgenda = { profesional: ProfesionalResumenDto; items: AgendaDiaItemDto[] }
+
+/** "08:30" → 510 (minutos del día). */
+function aMinutos(hm: string): number {
+  const [h, m] = String(hm).split(':').map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
+}
+
 function AgendaView() {
   const catalogo = useCatalogos()
-  const [profId, setProfId] = useState<number | null>(null)
+  const [profIds, setProfIds] = useState<number[]>([])
   const [fecha, setFecha] = useState(hoyISO())
-  const [items, setItems] = useState<AgendaDiaItemDto[]>([])
+  const [filas, setFilas] = useState<FilaAgenda[]>([])
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (profId === null) {
-      setItems([])
+    if (profIds.length === 0) {
+      setFilas([])
       return
     }
     setCargando(true)
     setError(null)
-    api
-      .agendaDia({ profesionalId: profId, fecha })
-      .then((d) => setItems(d))
+    const seleccionados = catalogo.profesionales.filter((p) => profIds.includes(p.id))
+    Promise.all(
+      seleccionados.map((p) =>
+        api.agendaDia({ profesionalId: p.id, fecha }).then((items) => ({ p, items })),
+      ),
+    )
+      .then((rs) => setFilas(rs.map(({ p, items }) => ({ profesional: p, items }))))
       .catch((e) => setError(msgError(e)))
       .finally(() => setCargando(false))
-  }, [profId, fecha])
+  }, [profIds, fecha, catalogo.profesionales])
+
+  function toggleProf(id: number) {
+    setProfIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
 
   return (
     <div>
       <Cabecera
         titulo="Agenda del día"
-        sub="Consulte las citas programadas de un profesional para una fecha."
+        sub="Línea de tiempo diaria con una fila por profesional. Seleccione uno o varios."
       />
 
-      <div className="mb-5 flex flex-wrap items-end gap-4 rounded-xl border border-border bg-white p-4">
-        <label className="text-sm font-medium">
-          Profesional
-          <select
-            value={profId ?? ''}
-            onChange={(e) => setProfId(e.target.value ? Number(e.target.value) : null)}
-            className={inputCls}
-          >
-            <option value="">Seleccione un profesional…</option>
-            {catalogo.profesionales.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombresCompletos} — {p.especialidad} ({p.sede})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm font-medium">
-          Fecha
-          <input
-            type="date"
-            value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
-            className={inputCls}
-          />
-        </label>
+      <div className="mb-5 rounded-xl border border-border bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-[280px] flex-1">
+            <p className="mb-2 text-sm font-medium">Profesionales</p>
+            <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
+              {catalogo.profesionales.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleProf(p.id)}
+                  aria-pressed={profIds.includes(p.id)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    profIds.includes(p.id)
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border bg-white text-foreground/80 hover:border-primary/50'
+                  }`}
+                >
+                  {p.nombresCompletos}
+                  {p.especialidad && <span className="opacity-70"> — {p.especialidad}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="text-sm font-medium">
+            Fecha
+            <input
+              type="date"
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              className={inputCls}
+            />
+          </label>
+        </div>
       </div>
 
       {error && <Aviso msg={error} />}
       {cargando && <Spinner />}
 
-      {!cargando && profId !== null && items.length === 0 && (
+      {!cargando && profIds.length === 0 && (
         <div className="rounded-lg border border-border bg-white p-10 text-center text-sm text-foreground/60">
-          No hay citas programadas para esta fecha.
+          Seleccione al menos un profesional para ver la agenda del día.
         </div>
       )}
 
-      {!cargando && items.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-border bg-white">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-foreground/60">
-                  <th className="px-4 py-3">Hora</th>
-                  <th className="px-4 py-3">Paciente</th>
-                  <th className="px-4 py-3">Identificación</th>
-                  <th className="px-4 py-3">Edad</th>
-                  <th className="px-4 py-3">Tipo de cita</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Aseguradora</th>
-                  <th className="px-4 py-3">Régimen</th>
-                  <th className="px-4 py-3">Motivo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((i) => (
-                  <tr key={i.citaId} className="border-t border-border first:border-t-0 hover:bg-muted/40">
-                    <td className="whitespace-nowrap px-4 py-3 font-semibold">{i.horaInicio}</td>
-                    <td className="px-4 py-3">{i.paciente}</td>
-                    <td className="px-4 py-3">{i.identificacion}</td>
-                    <td className="px-4 py-3">{i.edadPaciente} años</td>
-                    <td className="px-4 py-3">{i.tipoCita}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(
-                          i.estadoId,
-                        )}`}
-                      >
-                        {i.estado}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">{i.aseguradora ?? '—'}</td>
-                    <td className="px-4 py-3">{i.regimen ?? '—'}</td>
-                    <td className="px-4 py-3">{i.motivoConsulta ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {!cargando && profIds.length > 0 && filas.length === 0 && (
+        <div className="rounded-lg border border-border bg-white p-10 text-center text-sm text-foreground/60">
+          No hay citas programadas para esta fecha y los profesionales seleccionados.
         </div>
       )}
+
+      {!cargando && filas.length > 0 && <TimelineDia filas={filas} />}
+    </div>
+  )
+}
+
+const HORA_INICIO = 6 * 60 // 06:00
+const HORA_FIN = 21 * 60 // 21:00
+const PX_POR_HORA = 56 // px por hora en la escala
+const ANCHO_COL = 180 // columna izquierda (profesional)
+const pxHora = (min: number) => ((min - HORA_INICIO) / 60) * PX_POR_HORA
+const horasEje = Array.from(
+  { length: (HORA_FIN - HORA_INICIO) / 60 + 1 },
+  (_, i) => HORA_INICIO + i * 60,
+)
+
+/** Línea de tiempo diaria: fila por profesional, bloques posicionados por hora. */
+function TimelineDia({ filas }: { filas: FilaAgenda[] }) {
+  const rango = HORA_FIN - HORA_INICIO
+  const todas = filas.flatMap((f) => f.items)
+  const vacias = todas.length === 0
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-white">
+      <div className="overflow-x-auto">
+        <div className="min-w-max">
+          <div
+            className="relative border-b border-border bg-muted"
+            style={{ height: 44, marginLeft: ANCHO_COL }}
+          >
+            <span
+              className="absolute top-1/2 w-12 -translate-y-1/2 text-xs font-medium text-foreground/60"
+              style={{ left: 0 }}
+            >
+              06:00
+            </span>
+            {horasEje.slice(1).map((h) => (
+              <span
+                key={h}
+                className="absolute top-1/2 w-12 -translate-y-1/2 text-xs font-medium text-foreground/60"
+                style={{ left: pxHora(h) }}
+              >
+                {`${String(Math.floor(h / 60)).padStart(2, '0')}:00`}
+              </span>
+            ))}
+          </div>
+
+          {vacias ? (
+            <div className="border-t border-border p-10 text-center text-sm text-foreground/60">
+              No hay citas programadas para estas filas.
+            </div>
+          ) : (
+            filas.map((f) => {
+              return (
+                <div key={f.profesional.id} className="relative border-t border-border">
+                  <div
+                    className="absolute inset-y-0 left-0 z-10 bg-background px-3 py-2"
+                    style={{ width: ANCHO_COL, borderRight: '1px solid var(--border)' }}
+                  >
+                    <p className="truncate text-sm font-semibold">{f.profesional.nombresCompletos}</p>
+                    <p className="truncate text-xs text-foreground/60">{f.profesional.especialidad}</p>
+                  </div>
+                  <div
+                    className="relative"
+                    style={{ marginLeft: ANCHO_COL, height: 76 }}
+                  >
+                    {horasEje.map((h) => (
+                      <span
+                        key={h}
+                        className="pointer-events-none absolute inset-y-0 border-l border-border/60"
+                        style={{ left: pxHora(h) }}
+                      />
+                    ))}
+                    {f.items.map((i) => {
+                      const inicio = aMinutos(i.horaInicio)
+                      const fin = aMinutos(i.horaFin) || inicio
+                      const left = ((inicio - HORA_INICIO) / rango) * 100
+                      const width = ((fin - inicio) / rango) * 100
+                      return (
+                        <button
+                          key={i.citaId}
+                          type="button"
+                          title={`${i.horaInicio}–${i.horaFin} · ${i.paciente}`}
+                          className="absolute top-1.5 flex h-[64px] flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] leading-tight transition-colors hover:z-20 hover:brightness-95"
+                          style={{
+                            left: `${left}%`,
+                            width: `${width}%`,
+                            minWidth: 70,
+                            borderColor: 'currentColor',
+                            backgroundColor: 'color-mix(in srgb, currentColor 12%, white)',
+                            color: {
+                              1: '#0369a1',
+                              2: '#047857',
+                              3: '#b45309',
+                              4: '#0f766e',
+                              5: '#be123c',
+                              6: '#475569',
+                              7: '#6d28d9',
+                            }[i.estadoId] ?? '#475569',
+                          }}
+                        >
+                          <span className="flex items-center justify-between gap-1 font-medium">
+                            <span>{i.horaInicio}</span>
+                            <span className={`rounded-full border px-1.5 py-px text-[9px] ${estadoBadge(i.estadoId)}`}>
+                              {i.estado}
+                            </span>
+                          </span>
+                          <span className="truncate font-semibold">{i.paciente}</span>
+                          <span className="truncate opacity-75">
+                            {i.tipoCita} · {i.identificacion}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      <TimelineDetalle filas={filas} />
+    </div>
+  )
+}
+
+/** Tabla de detalle debajo de la timeline, reutilizando estadoBadge (1-7). */
+function TimelineDetalle({ filas }: { filas: FilaAgenda[] }) {
+  const items = filas.flatMap((f) => f.items)
+  if (items.length === 0) return null
+  return (
+    <div className="border-t border-border">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-foreground/60">
+              <th className="px-4 py-3">Profesional</th>
+              <th className="px-4 py-3">Hora</th>
+              <th className="px-4 py-3">Paciente</th>
+              <th className="px-4 py-3">Identificación</th>
+              <th className="px-4 py-3">Edad</th>
+              <th className="px-4 py-3">Tipo de cita</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Aseguradora</th>
+              <th className="px-4 py-3">Régimen</th>
+              <th className="px-4 py-3">Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((i) => {
+              const profesional = filas.find(
+                (f) => f.items.some((x) => x.citaId === i.citaId),
+              )?.profesional
+              return (
+                <tr key={i.citaId} className="border-t border-border first:border-t-0 hover:bg-muted/40">
+                  <td className="whitespace-nowrap px-4 py-3">{profesional?.nombresCompletos ?? '—'}</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-semibold">{i.horaInicio}</td>
+                  <td className="px-4 py-3">{i.paciente}</td>
+                  <td className="px-4 py-3">{i.identificacion}</td>
+                  <td className="px-4 py-3">{i.edadPaciente} años</td>
+                  <td className="px-4 py-3">{i.tipoCita}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(
+                        i.estadoId,
+                      )}`}
+                    >
+                      {i.estado}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">{i.aseguradora ?? '—'}</td>
+                  <td className="px-4 py-3">{i.regimen ?? '—'}</td>
+                  <td className="px-4 py-3">{i.motivoConsulta ?? '—'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

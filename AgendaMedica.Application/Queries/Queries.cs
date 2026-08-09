@@ -95,13 +95,86 @@ public class ObtenerDisponibilidadHandler
             Estado: c.Estado.ToString()
         )).ToList();
 
+        // ── Plantillas horarias del profesional para ese día ──
+        var diaSemana = (byte)request.Fecha.DayOfWeek == 0
+            ? (byte)7
+            : (byte)request.Fecha.DayOfWeek; // Lunes=1..Domingo=7
+
+        var plantillas = await _uow.Disponibilidades.ObtenerPorDiaAsync(
+            request.ProfesionalId, diaSemana, ct);
+
+        // ── Genera slots libres desde la plantilla ─────────────
+        var slotsLibres = GenerarSlotsLibres(
+            plantillas, citasDelDia, tipoCita.DuracionMinutos, request.Fecha);
+
         return new DisponibilidadDto(
             ProfesionalId: profesional.Id,
             NombreProfesional: profesional.NombresCompletos,
             Fecha: request.Fecha,
             DuracionSlotMinutos: tipoCita.DuracionMinutos,
-            SlotsOcupados: slotsOcupados
+            SlotsOcupados: slotsOcupados,
+            SlotsLibres: slotsLibres
         );
+    }
+
+    private static List<SlotLibreDto> GenerarSlotsLibres(
+        IList<Domain.Entities.DisponibilidadProfesional> plantillas,
+        IList<Domain.Entities.Cita> citas,
+        int duracionMinutos,
+        DateOnly fecha)
+    {
+        if (plantillas.Count == 0) return new();
+
+        // Convertir citas del día a rangos para el cruce
+        var ocupados = citas
+            .Select(c => (Inicio: c.FechaHora.TimeOfDay, Fin: c.FechaHoraFin.TimeOfDay))
+            .ToList();
+
+        var libres = new List<SlotLibreDto>();
+        foreach (var p in plantillas.OrderBy(p => p.HoraInicio))
+        {
+            var inicio = p.HoraInicio;
+            var fin    = p.HoraFin;
+
+            while (inicio + TimeSpan.FromMinutes(duracionMinutos) <= fin)
+            {
+                var finSlot = inicio + TimeSpan.FromMinutes(duracionMinutos);
+                var choca = ocupados.Any(o =>
+                    inicio < o.Fin && finSlot > o.Inicio);
+                if (!choca)
+                {
+                    libres.Add(new SlotLibreDto(
+                        HoraInicio: new DateTime(fecha.Year, fecha.Month, fecha.Day, inicio.Hours, inicio.Minutes, 0).ToString("HH:mm"),
+                        HoraFin: new DateTime(fecha.Year, fecha.Month, fecha.Day, finSlot.Hours, finSlot.Minutes, 0).ToString("HH:mm"),
+                        Disponible: true,
+                        ConsultorioSala: p.ConsultorioSala));
+                }
+                inicio = finSlot;
+            }
+        }
+        return libres;
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PLANTILLAS DE DISPONIBILIDAD DE UN PROFESIONAL (Fase 1)
+// ══════════════════════════════════════════════════════════════
+public record ObtenerPlantillasDisponibilidadQuery(int ProfesionalId)
+    : IRequest<List<DisponibilidadProfesionalDto>>;
+
+public class ObtenerPlantillasDisponibilidadHandler
+    : IRequestHandler<ObtenerPlantillasDisponibilidadQuery, List<DisponibilidadProfesionalDto>>
+{
+    private readonly IUnitOfWork _uow;
+    public ObtenerPlantillasDisponibilidadHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<List<DisponibilidadProfesionalDto>> Handle(
+        ObtenerPlantillasDisponibilidadQuery request, CancellationToken ct)
+    {
+        var plantillas = await _uow.Disponibilidades.ObtenerTodasDelProfesionalAsync(
+            request.ProfesionalId, ct);
+
+        return plantillas.Select(p => p.ToDisponibilidadDto()).ToList();
     }
 }
 

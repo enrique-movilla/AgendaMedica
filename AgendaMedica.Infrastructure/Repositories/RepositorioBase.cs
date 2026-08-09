@@ -225,6 +225,7 @@ public class UnitOfWork : IUnitOfWork
     private ICitaRepositorio?               _citas;
     private IPacienteRepositorio?           _pacientes;
     private IProfesionalRepositorio?        _profesionales;
+    private IDisponibilidadRepositorio?     _disponibilidades;
     private IAseguradoraRepositorio?        _aseguradoras;
     private IEspecialidadRepositorio?       _especialidades;
     private ISedeRepositorio?               _sedes;
@@ -240,6 +241,8 @@ public class UnitOfWork : IUnitOfWork
     public ICitaRepositorio         Citas          => _citas         ??= new CitaRepositorio(_db);
     public IPacienteRepositorio     Pacientes      => _pacientes     ??= new PacienteRepositorio(_db);
     public IProfesionalRepositorio  Profesionales  => _profesionales ??= new ProfesionalRepositorio(_db);
+    public IDisponibilidadRepositorio Disponibilidades
+        => _disponibilidades ??= new DisponibilidadProfesionalRepositorio(_db);
     public IAseguradoraRepositorio  Aseguradoras   => _aseguradoras  ??= new AseguradoraRepositorio(_db);
     public IEspecialidadRepositorio Especialidades => _especialidades??= new EspecialidadRepositorio(_db);
     public ISedeRepositorio         Sedes          => _sedes         ??= new SedeRepositorio(_db);

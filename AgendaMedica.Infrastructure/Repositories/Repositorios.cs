@@ -12,6 +12,7 @@
 // ============================================================
 
 using AgendaMedica.Domain.Entities;
+using AgendaMedica.Domain.Enums;
 using AgendaMedica.Domain.Interfaces;
 using AgendaMedica.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -324,4 +325,34 @@ public class TipoCitaRepositorio : RepositorioBase<TipoCita>, ITipoCitaRepositor
             .ThenBy(t => t.Nombre)
             .ToListAsync(ct);
     }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  DISPONIBILIDAD PROFESIONAL (plantillas horarias)
+// ══════════════════════════════════════════════════════════════
+public class DisponibilidadProfesionalRepositorio
+    : RepositorioBase<DisponibilidadProfesional>, IDisponibilidadRepositorio
+{
+    public DisponibilidadProfesionalRepositorio(AgendaDbContext db) : base(db) { }
+
+    public async Task<IList<DisponibilidadProfesional>> ObtenerTodasDelProfesionalAsync(
+        int profesionalId, CancellationToken ct = default)
+        => await _db.Disponibilidades
+            .Include(d => d.Profesional)
+                .ThenInclude(p => p!.Sede)
+            .Where(d => d.ProfesionalId == profesionalId && d.Activo)
+            .OrderBy(d => d.DiaSemana)
+            .ThenBy(d => d.HoraInicio)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+    public async Task<IList<DisponibilidadProfesional>> ObtenerPorDiaAsync(
+        int profesionalId, byte diaSemana, CancellationToken ct = default)
+        => await _db.Disponibilidades
+            .Where(d => d.ProfesionalId == profesionalId
+                     && d.DiaSemana == (DiaSemana)diaSemana
+                     && d.Activo)
+            .OrderBy(d => d.HoraInicio)
+            .AsNoTracking()
+            .ToListAsync(ct);
 }

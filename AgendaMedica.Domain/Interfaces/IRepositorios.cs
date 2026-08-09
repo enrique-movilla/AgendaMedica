@@ -31,6 +31,9 @@ public interface IUnitOfWork : IAsyncDisposable
     IPacienteRepositorio           Pacientes            { get; }
     IProfesionalRepositorio        Profesionales        { get; }
 
+    // Plantillas de disponibilidad (agenda)
+    IDisponibilidadRepositorio     Disponibilidades     { get; }
+
     // Catálogos propios
     IAseguradoraRepositorio        Aseguradoras         { get; }
     IEspecialidadRepositorio       Especialidades       { get; }
@@ -103,6 +106,18 @@ public interface IProfesionalRepositorio : IRepositorio<Profesional>
     Task<bool> ExisteIdentificacionAsync(
         byte tipoIdentificacionId, string numeroIdentificacion,
         int? excluirId = null, CancellationToken ct = default);
+}
+
+// ── IDisponibilidadRepositorio (plantillas horarias) ──────────
+public interface IDisponibilidadRepositorio : IRepositorio<DisponibilidadProfesional>
+{
+/// <summary>Devuelve las plantillas activas de un profesional.</summary>
+    Task<IList<DisponibilidadProfesional>> ObtenerTodasDelProfesionalAsync(
+        int profesionalId, CancellationToken ct = default);
+
+    /// <summary>Devuelve las plantillas activas del profesional para un día de la semana.</summary>
+    Task<IList<DisponibilidadProfesional>> ObtenerPorDiaAsync(
+        int profesionalId, byte diaSemana, CancellationToken ct = default);
 }
 
 // ── IAseguradoraRepositorio (actualizado) ─────────────────────

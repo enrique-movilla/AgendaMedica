@@ -167,4 +167,28 @@ public static class MapeadorExtensions
         Longitud:            m.Longitud,
         Latitud:             m.Latitud
     );
+
+    // ── DisponibilidadProfesional → DisponibilidadProfesionalDto ──
+    private static readonly string[] _nombresDia =
+    {
+        "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"
+    };
+
+    public static DisponibilidadProfesionalDto ToDisponibilidadDto(
+        this DisponibilidadProfesional d) => new(
+        Id:                 d.Id,
+        ProfesionalId:      d.ProfesionalId,
+        NombreProfesional:  d.Profesional?.NombresCompletos ?? string.Empty,
+        DiaSemana:          (byte)d.DiaSemana,
+        NombreDia:          d.DiaSemana is >= Domain.Enums.DiaSemana.Lunes and <= Domain.Enums.DiaSemana.Domingo
+                                ? _nombresDia[(byte)d.DiaSemana - 1]
+                                : string.Empty,
+        HoraInicio:         d.HoraInicio.ToString(@"hh\:mm"),
+        HoraFin:            d.HoraFin.ToString(@"hh\:mm"),
+        DuracionMinutos:    d.DuracionMinutos,
+SedeId:             d.SedeId,
+        Sede:               d.Profesional?.Sede?.Nombre,
+        ConsultorioSala:    d.ConsultorioSala,
+        Activo:             d.Activo
+    );
 }

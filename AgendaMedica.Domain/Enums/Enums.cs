@@ -85,3 +85,16 @@ public enum OrigenCambio
     Teams,
     Sistema,
 }
+
+// ── Día de la semana (plantillas de disponibilidad) ───────────
+// ISO 8601: 1 = Lunes … 7 = Domingo
+public enum DiaSemana : byte
+{
+    Lunes    = 1,
+    Martes   = 2,
+    Miercoles= 3,
+    Jueves   = 4,
+    Viernes  = 5,
+    Sabado   = 6,
+    Domingo  = 7,
+}

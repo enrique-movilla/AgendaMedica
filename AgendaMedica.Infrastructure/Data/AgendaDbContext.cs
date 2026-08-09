@@ -23,6 +23,9 @@ public class AgendaDbContext : DbContext
     public DbSet<Paciente>             Pacientes            { get; set; }
     public DbSet<Profesional>          Profesionales        { get; set; }
 
+    // ── Plantillas de disponibilidad ─────────────────────────
+    public DbSet<DisponibilidadProfesional> Disponibilidades { get; set; }
+
     // ── Catálogos propios ─────────────────────────────────────
     public DbSet<TipoIdentificacion>   TiposIdentificacion  { get; set; }
     public DbSet<Especialidad>         Especialidades       { get; set; }

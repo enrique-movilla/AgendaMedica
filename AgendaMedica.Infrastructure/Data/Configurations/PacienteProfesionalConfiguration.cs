@@ -121,6 +121,44 @@ public class ProfesionalConfiguration : IEntityTypeConfiguration<Profesional>
     }
 }
 
+// ── DisponibilidadProfesional (plantillas horarias v1.4) ──────
+public class DisponibilidadProfesionalConfiguration
+    : IEntityTypeConfiguration<DisponibilidadProfesional>
+{
+    public void Configure(EntityTypeBuilder<DisponibilidadProfesional> b)
+    {
+        b.ToTable("DisponibilidadProfesional");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Id).UseIdentityColumn();
+
+        b.Property(e => e.ProfesionalId).IsRequired();
+        b.Property(e => e.DiaSemana).IsRequired();
+        b.Property(e => e.HoraInicio).IsRequired().HasColumnType("time");
+        b.Property(e => e.HoraFin).IsRequired().HasColumnType("time");
+        b.Property(e => e.DuracionMinutos).IsRequired();
+        b.Property(e => e.SedeId).IsRequired(false);
+        b.Property(e => e.ConsultorioSala).HasMaxLength(50);
+        b.Property(e => e.Activo).IsRequired().HasDefaultValue(true);
+        b.Property(e => e.FechaCreacion)
+            .IsRequired().HasDefaultValueSql("now() at time zone 'utc'");
+        b.Property(e => e.FechaModificacion).IsRequired(false);
+
+        b.ToTable(t => t.HasCheckConstraint(
+            "CK_Disponibilidad_Rango", "\"HoraFin\" > \"HoraInicio\""));
+        b.ToTable(t => t.HasCheckConstraint(
+            "CK_Disponibilidad_Duracion",
+            "\"DuracionMinutos\" BETWEEN 5 AND 480"));
+
+        b.HasIndex(e => new { e.ProfesionalId, e.DiaSemana })
+            .HasDatabaseName("IX_Disponibilidad_Profesional_Dia");
+
+        b.HasOne(e => e.Profesional)
+            .WithMany()
+            .HasForeignKey(e => e.ProfesionalId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 // ── Cita (v1.1 - Corregido para PostgreSQL) ───────────────────────────────
 public class CitaConfiguration : IEntityTypeConfiguration<Cita>
 {
