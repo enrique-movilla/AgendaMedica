@@ -1,0 +1,31 @@
+# ── .NET ──
+bin/
+obj/
+*.user
+*.suo
+
+# ── IDE / editor ──
+.vs/
+.vscode/
+.idea/
+*.sw?
+
+# ── Salidas y datos locales ──
+salida_pg/
+*.logar
+coding_err.txt
+encoding_err.txt
+
+# ── Python ──
+__pycache__/
+*.pyc
+
+# ── Secretos locales ──
+appsettings.Local.json
+appsettings.Development.local.json
+.env
+*.local.json
+
+# ── Node ── (raíz del frontend ya trae su propio .gitignore)
+node_modules/
+dist/
