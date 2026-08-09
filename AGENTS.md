@@ -23,6 +23,12 @@ Solución .NET 8 para la gestión de citas médicas. Todo el código (identifica
 - Ejecutar: `dotnet run --project AgendaMedica.Api` — perfil `http` en `http://localhost:5047/swagger` (ver `launchSettings.json`).
 - No hay proyectos de test, ni migrations EF, ni CI/lint configurados.
 
+## Contexto de trabajo vigente (branch `feature/ui-ux`)
+
+- **Roadmap y checklist de UI/UX de la agenda:** `Contexto_Agenda_UIUX.md` (raíz del repo). Define las 3 pantallas (Asignación / Revisión / Mantenimiento), los GAPS (G1-G20) respecto al código actual y la hoja de ruta en 4 fases.
+- **Documento de requerimientos fuente:** `docs/PreContexto_Agenda_UIUX.md`.
+- **Regla:** antes de tocar pantallas de agenda (AgendaView, NuevaCitaView, o nuevos endpoints de citas/disponibilidad), revisar ambos archivos y alinearse con la fase en curso.
+
 ## Gotchas operativos
 
 - **El esquema de la BD no se genera desde el código** (no hay `EnsureCreated` ni `Migrate`, no existe carpeta `Migrations`). La BD SQL Server debe existir. La connection string `AgendaMedica` apunta a `Server=EII-54VK7TKB` con Windows auth (máquina local del dev). Al arrancar solo verifica `CanConnectAsync`.
