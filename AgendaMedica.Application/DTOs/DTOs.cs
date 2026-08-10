@@ -43,7 +43,12 @@ public record AgendaDiaItemDto(
     string? Aseguradora,     // "EPS SURA — Contributivo"
     string? Regimen,         // ← NUEVO: nombre del TipoUsuario
     string? MotivoConsulta,
-    string? TeamsJoinUrl
+    string? TeamsJoinUrl,
+    DateOnly Fecha,                         // ← Fase 2: fecha de la cita
+    int      ProfesionalId,                 // ← Fase 2: agrupación multi-recurso
+    string   ProfesionalNombre,             // ← Fase 2
+    string?  Especialidad,                  // ← Fase 2
+    int      DuracionMinutos                // ← Fase 2: para bloqueos/dnd
 );
 
 // ── Disponibilidad ────────────────────────────────────────────

@@ -25,12 +25,6 @@ public class ObtenerAgendaDiaHandler
     private readonly IUnitOfWork _uow;
     public ObtenerAgendaDiaHandler(IUnitOfWork uow) => _uow = uow;
 
-    // ============================================================
-    //  CORRECCIÓN: ObtenerAgendaDiaHandler en Queries.cs
-    //  Reemplace SOLO el método Handle de esta clase.
-    //  El cambio es agregar el campo Regimen al AgendaDiaItemDto.
-    // ============================================================
-
     public async Task<List<AgendaDiaItemDto>> Handle(
         ObtenerAgendaDiaQuery request, CancellationToken ct)
     {
@@ -40,7 +34,15 @@ public class ObtenerAgendaDiaHandler
         var citas = await _uow.Citas.ObtenerAgendaDiaAsync(
             request.ProfesionalId, request.Fecha, ct);
 
-        return citas.Select(c => new AgendaDiaItemDto(
+        var nombre = profesional.NombresCompletos;
+        var especialidad = profesional.Especialidad?.Nombre;
+
+        return citas.Select(c => Mapear(c, request.Fecha, nombre, especialidad)).ToList();
+    }
+
+    internal static AgendaDiaItemDto Mapear(
+        Domain.Entities.Cita c, DateOnly fecha, string nombreProfesional, string? especialidad)
+        => new(
             CitaId: c.Id,
             HoraInicio: c.FechaHora.ToString("HH:mm"),
             HoraFin: c.FechaHoraFin.ToString("HH:mm"),
@@ -54,11 +56,52 @@ public class ObtenerAgendaDiaHandler
             Aseguradora: c.Paciente.Aseguradora is not null
                                 ? $"{c.Paciente.Aseguradora.Nombre} — {c.Paciente.Aseguradora.Sigla}"
                                 : null,
-            Regimen: c.TipoUsuario?.Nombre          // ← campo nuevo v1.1
+            Regimen: c.TipoUsuario?.Nombre
                             ?? c.Paciente.TipoUsuario?.Nombre,
             MotivoConsulta: c.MotivoConsulta,
-            TeamsJoinUrl: c.TeamsJoinUrl
-        )).ToList();
+            TeamsJoinUrl: c.TeamsJoinUrl,
+            Fecha: fecha,
+            ProfesionalId: c.ProfesionalId,
+            ProfesionalNombre: nombreProfesional,
+            Especialidad: especialidad,
+            DuracionMinutos: (int)(c.FechaHoraFin - c.FechaHora).TotalMinutes
+        );
+}
+
+// ══════════════════════════════════════════════════════════════
+//  AGENDA POR RANGO (semanal/mensual/lista — Fase 2)
+// ══════════════════════════════════════════════════════════════
+public record ObtenerAgendaRangoQuery(
+    IReadOnlyCollection<int> ProfesionalesIds,
+    DateOnly FechaDesde,
+    DateOnly FechaHasta
+) : IRequest<List<AgendaDiaItemDto>>;
+
+public class ObtenerAgendaRangoHandler
+    : IRequestHandler<ObtenerAgendaRangoQuery, List<AgendaDiaItemDto>>
+{
+    private readonly IUnitOfWork _uow;
+    public ObtenerAgendaRangoHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<List<AgendaDiaItemDto>> Handle(
+        ObtenerAgendaRangoQuery request, CancellationToken ct)
+    {
+        if (request.ProfesionalesIds.Count == 0)
+            return new();
+
+        var profesionales = await _uow.Profesionales.ObtenerPorIdsAsync(
+            request.ProfesionalesIds, ct);
+
+        var citas = await _uow.Citas.ObtenerAgendaRangoAsync(
+            request.ProfesionalesIds, request.FechaDesde, request.FechaHasta, ct);
+
+        return citas.Select(c =>
+        {
+            var p = profesionales.FirstOrDefault(x => x.Id == c.ProfesionalId);
+            return ObtenerAgendaDiaHandler.Mapear(
+                c, DateOnly.FromDateTime(c.FechaHora),
+                p?.NombresCompletos ?? "—", p?.Especialidad?.Nombre);
+        }).ToList();
     }
 }
 

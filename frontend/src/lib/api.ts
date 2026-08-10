@@ -11,6 +11,7 @@ import type {
   DependenciaCatalogo,
   DisponibilidadDto,
   EspecialidadDto,
+  HistorialEstadoDto,
   PacienteDto,
   PacienteListaDto,
   ProfesionalResumenDto,
@@ -170,6 +171,38 @@ export const api = {
     request<CitaDto>('/v1/citas', { method: 'POST', body: JSON.stringify(payload) }),
   agendaDia: (params: { profesionalId: number; fecha: string }) =>
     request<AgendaDiaItemDto[]>(`/v1/citas/agenda-dia${toQuery(params)}`),
+  agendaRango: (params: {
+    profesionalesIds: number[]
+    fechaDesde: string
+    fechaHasta: string
+  }) =>
+    request<AgendaDiaItemDto[]>(
+      `/v1/citas/agenda-rango${toQuery({
+        profesionalesIds: params.profesionalesIds.join(','),
+        fechaDesde: params.fechaDesde,
+        fechaHasta: params.fechaHasta,
+      })}`,
+    ),
   disponibilidad: (params: { profesionalId: number; fecha: string; tipoCitaId: number }) =>
     request<DisponibilidadDto>(`/v1/citas/disponibilidad${toQuery(params)}`),
+  historialCita: (id: number) =>
+    request<HistorialEstadoDto[]>(`/v1/citas/${id}/historial`),
+  cambiarEstadoCita: (id: number, payload: { nuevoEstadoId: number; motivo?: string | null }) =>
+    request<CitaDto>(`/v1/citas/${id}/estado`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  cancelarCita: (id: number, payload: { motivo: string }) =>
+    request<CitaDto>(`/v1/citas/${id}/cancelar`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  modificarCita: (
+    id: number,
+    payload: { nuevaFechaHora?: string; observaciones?: string | null; motivo?: string | null },
+  ) =>
+    request<CitaDto>(`/v1/citas/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
 }

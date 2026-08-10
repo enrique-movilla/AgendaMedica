@@ -44,6 +44,7 @@ public class CitaRepositorio : RepositorioBase<Cita>, ICitaRepositorio
                 .ThenInclude(p => p!.Sede)
             .Include(c => c.Aseguradora)
             .Include(c => c.TipoUsuario)
+            .Include(c => c.Historial)
             .FirstOrDefaultAsync(c => c.Id == id, ct);
 
     public async Task<IList<Cita>> ObtenerPorProfesionalYFechaAsync(
@@ -131,6 +132,32 @@ public class CitaRepositorio : RepositorioBase<Cita>, ICitaRepositorio
             .Where(c => c.ProfesionalId == profesionalId
                      && c.FechaHora    >= inicio
                      && c.FechaHora    <= fin
+                     && c.EstadoCitaId != 5
+                     && c.EstadoCitaId != 6)
+            .OrderBy(c => c.FechaHora)
+            .AsNoTracking()
+            .ToListAsync(ct);
+    }
+
+    public async Task<IList<Cita>> ObtenerAgendaRangoAsync(
+        IReadOnlyCollection<int> profesionalesIds, DateOnly fechaDesde, DateOnly fechaHasta,
+        CancellationToken ct = default)
+    {
+        var desde = fechaDesde.ToDateTime(TimeOnly.MinValue);
+        var hasta = fechaHasta.ToDateTime(TimeOnly.MaxValue);
+
+        return await _db.Citas
+            .Include(c => c.Paciente)
+                .ThenInclude(p => p!.TipoIdentificacion)
+            .Include(c => c.Paciente)
+                .ThenInclude(p => p!.Aseguradora)
+            .Include(c => c.Paciente)
+                .ThenInclude(p => p!.TipoUsuario)
+            .Include(c => c.TipoCita)
+            .Include(c => c.TipoUsuario)   // régimen de la cita
+            .Where(c => profesionalesIds.Contains(c.ProfesionalId)
+                     && c.FechaHora    >= desde
+                     && c.FechaHora    <= hasta
                      && c.EstadoCitaId != 5
                      && c.EstadoCitaId != 6)
             .OrderBy(c => c.FechaHora)
@@ -238,6 +265,20 @@ public class PacienteRepositorio : RepositorioBase<Paciente>, IPacienteRepositor
 public class ProfesionalRepositorio : RepositorioBase<Profesional>, IProfesionalRepositorio
 {
     public ProfesionalRepositorio(AgendaDbContext db) : base(db) { }
+
+    public async Task<IList<Profesional>> ObtenerPorIdsAsync(
+        IReadOnlyCollection<int> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return new List<Profesional>();
+
+        return await _db.Profesionales
+            .Include(p => p.Especialidad)
+            .Include(p => p.Sede)
+            .Include(p => p.TipoIdentificacion)
+            .Where(p => ids.Contains(p.Id))
+            .AsNoTracking()
+            .ToListAsync(ct);
+    }
 
     public async Task<IList<Profesional>> ObtenerPorEspecialidadAsync(
         int especialidadId, CancellationToken ct = default)

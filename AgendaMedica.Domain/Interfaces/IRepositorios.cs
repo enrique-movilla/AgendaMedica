@@ -73,6 +73,10 @@ public interface ICitaRepositorio : IRepositorio<Cita>
     Task<IList<Cita>> ObtenerAgendaDiaAsync(
         int profesionalId, DateOnly fecha, CancellationToken ct = default);
 
+    Task<IList<Cita>> ObtenerAgendaRangoAsync(
+        IReadOnlyCollection<int> profesionalesIds, DateOnly fechaDesde, DateOnly fechaHasta,
+        CancellationToken ct = default);
+
     Task<IList<OutboxMensaje>> ObtenerOutboxPendientesAsync(
         int cantidad = 10, CancellationToken ct = default);
 }
@@ -97,6 +101,9 @@ public interface IPacienteRepositorio : IRepositorio<Paciente>
 // ── IProfesionalRepositorio ───────────────────────────────────
 public interface IProfesionalRepositorio : IRepositorio<Profesional>
 {
+    Task<IList<Profesional>> ObtenerPorIdsAsync(
+        IReadOnlyCollection<int> ids, CancellationToken ct = default);
+
     Task<IList<Profesional>> ObtenerPorEspecialidadAsync(
         int especialidadId, CancellationToken ct = default);
 

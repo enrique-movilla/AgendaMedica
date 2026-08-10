@@ -34,6 +34,11 @@ export interface AgendaDiaItemDto {
   regimen: string | null
   motivoConsulta: string | null
   teamsJoinUrl: string | null
+  fecha: string
+  profesionalId: number
+  profesionalNombre: string
+  especialidad: string | null
+  duracionMinutos: number
 }
 
 export interface DisponibilidadDto {
@@ -42,6 +47,7 @@ export interface DisponibilidadDto {
   fecha: string
   duracionSlotMinutos: number
   slotsOcupados: SlotOcupadoDto[]
+  slotsLibres: SlotLibreDto[]
 }
 
 export interface SlotOcupadoDto {
@@ -49,6 +55,25 @@ export interface SlotOcupadoDto {
   horaFin: string
   estado: string
 }
+
+export interface SlotLibreDto {
+  horaInicio: string
+  horaFin: string
+  disponible: boolean
+  consultorioSala: string | null
+}
+
+export interface HistorialEstadoDto {
+  id: number
+  estadoAnterior: string | null
+  estadoNuevo: string
+  motivo: string | null
+  cambiadoPor: string
+  fechaCambio: string
+  origen: string
+}
+
+export type EstadoCitaId = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 export interface PacienteResumenDto {
   id: number

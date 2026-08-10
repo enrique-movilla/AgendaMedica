@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from './lib/api'
 import { useConfigBusqueda } from './lib/configBusqueda'
 import BuscadorAseguradora from './components/BuscadorAseguradora'
@@ -11,11 +11,13 @@ import type {
   CitaDto,
   DependenciaCatalogo,
   EspecialidadDto,
+  HistorialEstadoDto,
   PacienteDto,
   PacienteListaDto,
   ProfesionalResumenDto,
   ResultadoCatalogo,
   SedeDto,
+  SlotLibreDto,
   TipoCitaDto,
   TipoIdentificacionDto,
   TipoUsuarioDto,
@@ -184,6 +186,7 @@ function useCatalogos() {
 export default function App() {
   const [vista, setVista] = useState<Vista>('agenda')
   const [configAbierta, setConfigAbierta] = useState(false)
+  const [citaHint, setCitaHint] = useState<CitaHint | null>(null)
 
   return (
     <div className="min-h-screen bg-background">
@@ -233,8 +236,15 @@ export default function App() {
         </aside>
 
         <main className="flex-1 px-6 py-6 sm:px-8">
-          {vista === 'agenda' && <AgendaView />}
-          {vista === 'nueva-cita' && <NuevaCitaView />}
+          {vista === 'agenda' && (
+            <AgendaView
+              onCrearCita={(hint) => {
+                setCitaHint(hint)
+                setVista('nueva-cita')
+              }}
+            />
+          )}
+          {vista === 'nueva-cita' && <NuevaCitaView hint={citaHint} />}
           {vista === 'pacientes' && <PacientesView />}
           {vista === 'catalogos' && <CatalogosView />}
         </main>
@@ -246,8 +256,10 @@ export default function App() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  AGENDA DEL DÍA — Timeline multi-recurso (Fase 1)
+//  AGENDA — Calendario multi-vista (Fase 2)
 // ══════════════════════════════════════════════════════════════
+type VistaAgenda = 'diario' | 'semanal' | 'mensual' | 'lista'
+
 type FilaAgenda = { profesional: ProfesionalResumenDto; items: AgendaDiaItemDto[] }
 
 /** "08:30" → 510 (minutos del día). */
@@ -256,94 +268,346 @@ function aMinutos(hm: string): number {
   return (h ?? 0) * 60 + (m ?? 0)
 }
 
-function AgendaView() {
+const diaANombre = (d: Date) =>
+  d.toLocaleDateString('es-CO', { weekday: 'short' }).replace('.', '')
+
+function sumarDias(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00`)
+  d.setDate(d.getDate() + n)
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${dd}`
+}
+
+function lunesDeLaSemana(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`)
+  const diff = d.getDay() === 0 ? -6 : 1 - d.getDay()
+  return sumarDias(iso, diff)
+}
+
+function primerUltimoDiaMes(iso: string): { primero: string; ultimo: string } {
+  const d = new Date(`${iso}T00:00:00`)
+  const primero = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+  const uLtimo = `${ultimo.getFullYear()}-${String(ultimo.getMonth() + 1).padStart(2, '0')}-${String(
+    ultimo.getDate(),
+  ).padStart(2, '0')}`
+  return { primero, ultimo: uLtimo }
+}
+
+const ESTADOS_CITA: { id: number; nombre: string }[] = [
+  { id: 1, nombre: 'Programada' },
+  { id: 2, nombre: 'Confirmada' },
+  { id: 3, nombre: 'En atención' },
+  { id: 4, nombre: 'Realizada' },
+  { id: 5, nombre: 'Cancelada' },
+  { id: 6, nombre: 'No asistió' },
+  { id: 7, nombre: 'Reprogramada' },
+]
+
+function AgendaView({ onCrearCita }: { onCrearCita?: (hint: CitaHint) => void }) {
   const catalogo = useCatalogos()
+  const [vista, setVista] = useState<VistaAgenda>('diario')
   const [profIds, setProfIds] = useState<number[]>([])
   const [fecha, setFecha] = useState(hoyISO())
-  const [filas, setFilas] = useState<FilaAgenda[]>([])
+  const [desdeLista, setDesdeLista] = useState(lunesDeLaSemana(hoyISO()))
+  const [hastaLista, setHastaLista] = useState(hoyISO())
+  const [estadosActivos, setEstadosActivos] = useState<number[]>(ESTADOS_CITA.map((e) => e.id))
+  const [items, setItems] = useState<AgendaDiaItemDto[]>([])
+  const [slotsPorProf, setSlotsPorProf] = useState<Record<number, SlotLibreDto[]>>({})
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sel, setSel] = useState<AgendaDiaItemDto | null>(null)
+  const [refresh, setRefresh] = useState(0)
+  const [buscandoTurno, setBuscandoTurno] = useState(false)
+  const [turnoEncontrado, setTurnoEncontrado] = useState<string | null>(null)
+
+  const [desde, hasta] = useMemo(() => {
+    if (vista === 'semanal') {
+      const lun = lunesDeLaSemana(fecha)
+      return [lun, sumarDias(lun, 6)]
+    }
+    if (vista === 'mensual') {
+      const { primero, ultimo } = primerUltimoDiaMes(fecha)
+      return [primero, ultimo]
+    }
+    if (vista === 'lista') return [desdeLista, hastaLista]
+    return [fecha, fecha]
+  }, [vista, fecha, desdeLista, hastaLista])
 
   useEffect(() => {
     if (profIds.length === 0) {
-      setFilas([])
+      setItems([])
+      setSlotsPorProf({})
       return
     }
     setCargando(true)
     setError(null)
-    const seleccionados = catalogo.profesionales.filter((p) => profIds.includes(p.id))
-    Promise.all(
-      seleccionados.map((p) =>
-        api.agendaDia({ profesionalId: p.id, fecha }).then((items) => ({ p, items })),
-      ),
-    )
-      .then((rs) => setFilas(rs.map(({ p, items }) => ({ profesional: p, items }))))
+    setTurnoEncontrado(null)
+    setSel(null)
+    api
+      .agendaRango({ profesionalesIds: profIds, fechaDesde: desde, fechaHasta: hasta })
+      .then((r) =>
+        setItems(r.filter((i) => estadosActivos.includes(i.estadoId))),
+      )
       .catch((e) => setError(msgError(e)))
       .finally(() => setCargando(false))
-  }, [profIds, fecha, catalogo.profesionales])
+  }, [profIds, desde, hasta, estadosActivos, refresh])
+
+  useEffect(() => {
+    if (cargando || profIds.length === 0) return
+    Promise.all(
+      profIds.map(async (pid) => {
+        try {
+          const d = await api.disponibilidad({
+            profesionalId: pid,
+            fecha: desde,
+            tipoCitaId: catalogo.tiposCita[0]?.id ?? 1,
+          })
+          return [pid, d.slotsLibres] as const
+        } catch {
+          return [pid, []] as const
+        }
+      }),
+    )
+      .then((rs) => setSlotsPorProf(Object.fromEntries(rs)))
+      .catch(() => setSlotsPorProf({}))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profIds, desde, vista, refresh])
 
   function toggleProf(id: number) {
     setProfIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
+  function toggleEstado(id: number) {
+    setEstadosActivos((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+
+  const filas: FilaAgenda[] = profIds
+    .map((pid) => catalogo.profesionales.find((p) => p.id === pid))
+    .filter((p): p is ProfesionalResumenDto => Boolean(p))
+    .map((profesional) => ({
+      profesional,
+      items: items
+        .filter((i) => i.profesionalId === profesional.id)
+        .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)),
+    }))
+
+  async function buscarProximoTurno() {
+    if (profIds.length === 0 || catalogo.tiposCita.length === 0) return
+    const tipoCitaId = catalogo.tiposCita[0].id
+    setBuscandoTurno(true)
+    setError(null)
+    setTurnoEncontrado(null)
+    try {
+      for (let i = 0; i <= 30; i++) {
+        const dia = sumarDias(hoyISO(), i)
+        for (const pid of profIds) {
+          const d = await api.disponibilidad({ profesionalId: pid, fecha: dia, tipoCitaId })
+          const libre = d.slotsLibres.find((s) => s.disponible)
+          if (libre) {
+            setVista('diario')
+            setFecha(dia)
+            setTurnoEncontrado(
+              `${d.nombreProfesional} · ${dia} ${libre.horaInicio}–${libre.horaFin} (${d.duracionSlotMinutos} min)`,
+            )
+            return
+          }
+        }
+      }
+      setError('No hay turnos disponibles en los próximos 30 días para los profesionales seleccionados.')
+    } catch (e) {
+      setError(msgError(e))
+    } finally {
+      setBuscandoTurno(false)
+    }
+  }
+
   return (
     <div>
       <Cabecera
-        titulo="Agenda del día"
-        sub="Línea de tiempo diaria con una fila por profesional. Seleccione uno o varios."
+        titulo="Agenda"
+        sub="Calendario de citas por profesional. Seleccione los médicos a mostrar."
       />
 
-      <div className="mb-5 rounded-xl border border-border bg-white p-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-[280px] flex-1">
-            <p className="mb-2 text-sm font-medium">Profesionales</p>
-            <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
-              {catalogo.profesionales.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => toggleProf(p.id)}
-                  aria-pressed={profIds.includes(p.id)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    profIds.includes(p.id)
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-border bg-white text-foreground/80 hover:border-primary/50'
-                  }`}
-                >
-                  {p.nombresCompletos}
-                  {p.especialidad && <span className="opacity-70"> — {p.especialidad}</span>}
-                </button>
-              ))}
-            </div>
+      {/* ── Barra superior: pestañas + controles ── */}
+      <div className="mb-4 rounded-xl border border-border bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex rounded-lg border border-border p-0.5" role="tablist">
+            {(
+              [
+                ['diario', 'Diario'],
+                ['semanal', 'Semanal'],
+                ['mensual', 'Mensual'],
+                ['lista', 'Lista'],
+              ] as [VistaAgenda, string][]
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={vista === id}
+                onClick={() => setVista(id)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  vista === id ? 'bg-primary text-white' : 'text-foreground/70 hover:bg-muted'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <label className="text-sm font-medium">
-            Fecha
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              className={inputCls}
-            />
-          </label>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {vista === 'diario' && (
+              <>
+                <button type="button" onClick={() => setFecha(sumarDias(fecha, -1))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
+                <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={inputCls} />
+                <button type="button" onClick={() => setFecha(sumarDias(fecha, 1))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
+                <button type="button" onClick={() => setFecha(hoyISO())} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">Hoy</button>
+              </>
+            )}
+            {vista === 'semanal' && (
+              <>
+                <button type="button" onClick={() => setFecha(sumarDias(fecha, -7))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹ Semana</button>
+                <span className="text-sm font-medium">{formatFecha(desde)} – {formatFecha(hasta)}</span>
+                <button type="button" onClick={() => setFecha(sumarDias(fecha, 7))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">Semana ›</button>
+                <button type="button" onClick={() => setFecha(hoyISO())} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">Hoy</button>
+              </>
+            )}
+            {vista === 'mensual' && (
+              <>
+                <button type="button" onClick={() => setFecha(sumarDias(fecha, -30))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
+                <input type="month" value={fecha.slice(0, 7)} onChange={(e) => setFecha(e.target.value ? `${e.target.value}-01` : fecha)} className={inputCls} />
+                <button type="button" onClick={() => setFecha(sumarDias(fecha, 31))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
+                <button type="button" onClick={() => setFecha(hoyISO())} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">Hoy</button>
+              </>
+            )}
+            {vista === 'lista' && (
+              <>
+                <label className="text-sm">Desde
+                  <input type="date" value={desdeLista} onChange={(e) => setDesdeLista(e.target.value)} className={inputCls} />
+                </label>
+                <label className="text-sm">Hasta
+                  <input type="date" value={hastaLista} onChange={(e) => setHastaLista(e.target.value)} className={inputCls} />
+                </label>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={buscarProximoTurno}
+              disabled={buscandoTurno || profIds.length === 0}
+              className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {buscandoTurno ? 'Buscando…' : 'Próximo turno disponible'}
+            </button>
+          </div>
+        </div>
+
+        {/* Profesionales (multi-recurso a demanda) */}
+        <div className="mt-3">
+          <p className="mb-2 text-sm font-medium">Profesionales</p>
+          <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+            {catalogo.profesionales.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => toggleProf(p.id)}
+                aria-pressed={profIds.includes(p.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  profIds.includes(p.id)
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border bg-white text-foreground/80 hover:border-primary/50'
+                }`}
+              >
+                {p.nombresCompletos}
+                {p.especialidad && <span className="opacity-70"> — {p.especialidad}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Filtros por estado */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-foreground/60">Estados:</span>
+          {ESTADOS_CITA.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              onClick={() => toggleEstado(e.id)}
+              aria-pressed={estadosActivos.includes(e.id)}
+              className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                estadosActivos.includes(e.id)
+                  ? `${estadoBadge(e.id)} border-current`
+                  : 'border-border text-foreground/40'
+              }`}
+            >
+              {e.nombre}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setEstadosActivos(ESTADOS_CITA.map((x) => x.id))}
+            className="rounded-full border border-border px-2 py-0.5 text-[11px] text-foreground/60 hover:bg-muted"
+          >
+            Todos
+          </button>
         </div>
       </div>
 
       {error && <Aviso msg={error} />}
+      {turnoEncontrado && (
+        <div className="mb-4">
+          <Exito msg={`Próximo turno: ${turnoEncontrado}`} />
+        </div>
+      )}
       {cargando && <Spinner />}
 
       {!cargando && profIds.length === 0 && (
         <div className="rounded-lg border border-border bg-white p-10 text-center text-sm text-foreground/60">
-          Seleccione al menos un profesional para ver la agenda del día.
+          Seleccione al menos un profesional para ver el calendario.
         </div>
       )}
 
-      {!cargando && profIds.length > 0 && filas.length === 0 && (
-        <div className="rounded-lg border border-border bg-white p-10 text-center text-sm text-foreground/60">
-          No hay citas programadas para esta fecha y los profesionales seleccionados.
+      {!cargando && profIds.length > 0 && (
+        <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+          <div className="min-w-0">
+            {vista === 'diario' && (
+              <TimelineDia
+                filas={filas}
+                slotsPorProf={slotsPorProf}
+                fecha={fecha}
+                onSeleccionar={(i) => setSel(i)}
+                onCrearCita={onCrearCita}
+              />
+            )}
+            {vista === 'semanal' && (
+              <TimelineSemanal filas={filas} desde={desde} onSeleccionar={(i) => setSel(i)} />
+            )}
+            {vista === 'mensual' && (
+              <TimelineMensual
+                items={items}
+                fecha={fecha}
+                onDia={(d) => {
+                  setVista('diario')
+                  setFecha(d)
+                }}
+                onSeleccionar={(i) => setSel(i)}
+              />
+            )}
+            {vista === 'lista' && <VistaLista items={items} onSeleccionar={(i) => setSel(i)} />}
+          </div>
+
+          <aside className="min-w-0">
+            <PanelDetalleCita
+              cita={sel}
+              onCerrar={() => setSel(null)}
+              onChange={() => setRefresh((r) => r + 1)}
+            />
+          </aside>
         </div>
       )}
-
-      {!cargando && filas.length > 0 && <TimelineDia filas={filas} />}
     </div>
   )
 }
@@ -358,11 +622,32 @@ const horasEje = Array.from(
   (_, i) => HORA_INICIO + i * 60,
 )
 
+const colorEstado: Record<number, string> = {
+  1: '#0369a1',
+  2: '#047857',
+  3: '#b45309',
+  4: '#0f766e',
+  5: '#be123c',
+  6: '#475569',
+  7: '#6d28d9',
+}
+
 /** Línea de tiempo diaria: fila por profesional, bloques posicionados por hora. */
-function TimelineDia({ filas }: { filas: FilaAgenda[] }) {
+function TimelineDia({
+  filas,
+  slotsPorProf,
+  fecha,
+  onSeleccionar,
+  onCrearCita,
+}: {
+  filas: FilaAgenda[]
+  slotsPorProf: Record<number, SlotLibreDto[]>
+  fecha: string
+  onSeleccionar: (i: AgendaDiaItemDto) => void
+  onCrearCita?: (hint: CitaHint) => void
+}) {
   const rango = HORA_FIN - HORA_INICIO
   const todas = filas.flatMap((f) => f.items)
-  const vacias = todas.length === 0
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-white">
@@ -389,136 +674,224 @@ function TimelineDia({ filas }: { filas: FilaAgenda[] }) {
             ))}
           </div>
 
-          {vacias ? (
-            <div className="border-t border-border p-10 text-center text-sm text-foreground/60">
-              No hay citas programadas para estas filas.
+          {todas.length === 0 && (
+            <div className="p-10 text-center text-sm text-foreground/60">
+              No hay citas para esta fecha y los profesionales seleccionados.
             </div>
-          ) : (
-            filas.map((f) => {
-              return (
-                <div key={f.profesional.id} className="relative border-t border-border">
-                  <div
-                    className="absolute inset-y-0 left-0 z-10 bg-background px-3 py-2"
-                    style={{ width: ANCHO_COL, borderRight: '1px solid var(--border)' }}
-                  >
-                    <p className="truncate text-sm font-semibold">{f.profesional.nombresCompletos}</p>
-                    <p className="truncate text-xs text-foreground/60">{f.profesional.especialidad}</p>
-                  </div>
-                  <div
-                    className="relative"
-                    style={{ marginLeft: ANCHO_COL, height: 76 }}
-                  >
-                    {horasEje.map((h) => (
-                      <span
-                        key={h}
-                        className="pointer-events-none absolute inset-y-0 border-l border-border/60"
-                        style={{ left: pxHora(h) }}
-                      />
-                    ))}
-                    {f.items.map((i) => {
-                      const inicio = aMinutos(i.horaInicio)
-                      const fin = aMinutos(i.horaFin) || inicio
-                      const left = ((inicio - HORA_INICIO) / rango) * 100
-                      const width = ((fin - inicio) / rango) * 100
-                      return (
-                        <button
-                          key={i.citaId}
-                          type="button"
-                          title={`${i.horaInicio}–${i.horaFin} · ${i.paciente}`}
-                          className="absolute top-1.5 flex h-[64px] flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] leading-tight transition-colors hover:z-20 hover:brightness-95"
-                          style={{
-                            left: `${left}%`,
-                            width: `${width}%`,
-                            minWidth: 70,
-                            borderColor: 'currentColor',
-                            backgroundColor: 'color-mix(in srgb, currentColor 12%, white)',
-                            color: {
-                              1: '#0369a1',
-                              2: '#047857',
-                              3: '#b45309',
-                              4: '#0f766e',
-                              5: '#be123c',
-                              6: '#475569',
-                              7: '#6d28d9',
-                            }[i.estadoId] ?? '#475569',
-                          }}
-                        >
-                          <span className="flex items-center justify-between gap-1 font-medium">
-                            <span>{i.horaInicio}</span>
-                            <span className={`rounded-full border px-1.5 py-px text-[9px] ${estadoBadge(i.estadoId)}`}>
-                              {i.estado}
-                            </span>
-                          </span>
-                          <span className="truncate font-semibold">{i.paciente}</span>
-                          <span className="truncate opacity-75">
-                            {i.tipoCita} · {i.identificacion}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })
           )}
+
+          {filas.map((f) => (
+            <div key={f.profesional.id} className="relative border-t border-border">
+              <div
+                className="absolute inset-y-0 left-0 z-10 bg-background px-3 py-2"
+                style={{ width: ANCHO_COL, borderRight: '1px solid var(--border)' }}
+              >
+                <p className="truncate text-sm font-semibold">{f.profesional.nombresCompletos}</p>
+                <p className="truncate text-xs text-foreground/60">{f.profesional.especialidad}</p>
+              </div>
+              <div className="relative" style={{ marginLeft: ANCHO_COL, height: 76 }}>
+                {horasEje.map((h) => (
+                  <span
+                    key={h}
+                    className="pointer-events-none absolute inset-y-0 border-l border-border/60"
+                    style={{ left: pxHora(h) }}
+                  />
+                ))}
+
+                {/* Slots libres (haz clic para crear cita allí) */}
+                {(slotsPorProf[f.profesional.id] ?? [])
+                  .filter((s) => s.disponible)
+                  .map((s, idx) => {
+                    const inicio = aMinutos(s.horaInicio)
+                    const fin = aMinutos(s.horaFin) || inicio
+                    const left = ((inicio - HORA_INICIO) / rango) * 100
+                    const width = ((fin - inicio) / rango) * 100
+                    return (
+                      <button
+                        key={`slot-${idx}`}
+                        type="button"
+                        onClick={() =>
+                          onCrearCita?.({
+                            fechaHora: `${fecha}T${s.horaInicio}:00`,
+                            profesionalId: f.profesional.id,
+                            consultorioSala: s.consultorioSala,
+                          })
+                        }
+                        title={`Libre ${s.horaInicio}–${s.horaFin} · hacer clic para agendar`}
+                        className="absolute top-1.5 flex items-center justify-center rounded-md border border-dashed border-emerald-300 bg-emerald-50/70 text-center text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                        style={{
+                          left: `${left}%`,
+                          width: `${width}%`,
+                          minWidth: 26,
+                          height: 64,
+                        }}
+                      >
+                        +
+                      </button>
+                    )
+                  })}
+
+                {/* Citas */}
+                {f.items.map((i) => {
+                  const inicio = aMinutos(i.horaInicio)
+                  const fin = aMinutos(i.horaFin) || inicio
+                  const left = ((inicio - HORA_INICIO) / rango) * 100
+                  const width = ((fin - inicio) / rango) * 100
+                  return (
+                    <div key={i.citaId} className="absolute" style={{ left: `${left}%`, width: `${width}%`, minWidth: 70, top: 4 }}>
+                      <MenuTresPuntos onDetalle={() => onSeleccionar(i)} />
+                      <button
+                        type="button"
+                        onClick={() => onSeleccionar(i)}
+                        title={`${i.horaInicio}–${i.horaFin} · ${i.paciente}`}
+                        className="flex h-[64px] w-full flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] leading-tight transition-colors hover:z-20 hover:brightness-95"
+                        style={{
+                          borderColor: 'currentColor',
+                          backgroundColor: 'color-mix(in srgb, currentColor 12%, white)',
+                          color: colorEstado[i.estadoId] ?? '#475569',
+                        }}
+                      >
+                        <span className="flex items-center justify-between gap-1 font-medium">
+                          <span>{i.horaInicio}</span>
+                          <span className={`rounded-full border px-1.5 py-px text-[9px] ${estadoBadge(i.estadoId)}`}>
+                            {i.estado}
+                          </span>
+                        </span>
+                        <span className="truncate font-semibold">{i.paciente}</span>
+                        <span className="truncate opacity-75">
+                          {i.tipoCita} · {i.identificacion}
+                        </span>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-
-      <TimelineDetalle filas={filas} />
     </div>
   )
 }
 
-/** Tabla de detalle debajo de la timeline, reutilizando estadoBadge (1-7). */
-function TimelineDetalle({ filas }: { filas: FilaAgenda[] }) {
-  const items = filas.flatMap((f) => f.items)
-  if (items.length === 0) return null
+/** Menú contextual de 3 puntos por bloque. */
+function MenuTresPuntos({ onDetalle }: { onDetalle: () => void }) {
+  const [abierto, setAbierto] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onFuera(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setAbierto(false)
+    }
+    document.addEventListener('mousedown', onFuera)
+    return () => document.removeEventListener('mousedown', onFuera)
+  }, [])
+
   return (
-    <div className="border-t border-border">
+    <div ref={wrapRef} className="absolute -top-1 right-1 z-30">
+      <button
+        type="button"
+        aria-label="Opciones"
+        onClick={(e) => {
+          e.stopPropagation()
+          setAbierto((x) => !x)
+        }}
+        className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-foreground/60 shadow-sm ring-1 ring-border hover:text-foreground"
+      >
+        ⋯
+      </button>
+      {abierto && (
+        <div className="absolute right-0 z-40 mt-1 w-40 overflow-hidden rounded-lg border border-border bg-white py-1 shadow-lg">
+          <button
+            type="button"
+            className="block w-full px-3 py-1.5 text-left text-xs hover:bg-muted"
+            onClick={() => {
+              setAbierto(false)
+              onDetalle()
+            }}
+          >
+            Ver detalle
+          </button>
+          <button
+            type="button"
+            className="block w-full px-3 py-1.5 text-left text-xs text-rose-700 hover:bg-rose-50"
+            onClick={() => {
+              setAbierto(false)
+              onDetalle()
+            }}
+          >
+            Acciones de estado…
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Semana: columnas por día, fila por profesional. */
+function TimelineSemanal({
+  filas,
+  desde,
+  onSeleccionar,
+}: {
+  filas: FilaAgenda[]
+  desde: string
+  onSeleccionar: (i: AgendaDiaItemDto) => void
+}) {
+  const dias = Array.from({ length: 7 }, (_, i) => sumarDias(desde, i))
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead>
             <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-foreground/60">
-              <th className="px-4 py-3">Profesional</th>
-              <th className="px-4 py-3">Hora</th>
-              <th className="px-4 py-3">Paciente</th>
-              <th className="px-4 py-3">Identificación</th>
-              <th className="px-4 py-3">Edad</th>
-              <th className="px-4 py-3">Tipo de cita</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Aseguradora</th>
-              <th className="px-4 py-3">Régimen</th>
-              <th className="px-4 py-3">Motivo</th>
+              <th className="px-3 py-3">Profesional</th>
+              {dias.map((d) => (
+                <th key={d} className="px-2 py-3 text-center">
+                  {diaANombre(new Date(`${d}T00:00:00`))} {new Date(`${d}T00:00:00`).getDate()}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {items.map((i) => {
-              const profesional = filas.find(
-                (f) => f.items.some((x) => x.citaId === i.citaId),
-              )?.profesional
-              return (
-                <tr key={i.citaId} className="border-t border-border first:border-t-0 hover:bg-muted/40">
-                  <td className="whitespace-nowrap px-4 py-3">{profesional?.nombresCompletos ?? '—'}</td>
-                  <td className="whitespace-nowrap px-4 py-3 font-semibold">{i.horaInicio}</td>
-                  <td className="px-4 py-3">{i.paciente}</td>
-                  <td className="px-4 py-3">{i.identificacion}</td>
-                  <td className="px-4 py-3">{i.edadPaciente} años</td>
-                  <td className="px-4 py-3">{i.tipoCita}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(
-                        i.estadoId,
-                      )}`}
-                    >
-                      {i.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">{i.aseguradora ?? '—'}</td>
-                  <td className="px-4 py-3">{i.regimen ?? '—'}</td>
-                  <td className="px-4 py-3">{i.motivoConsulta ?? '—'}</td>
-                </tr>
-              )
-            })}
+            {filas.map((f) => (
+              <tr key={f.profesional.id} className="border-t border-border">
+                <td className="whitespace-nowrap px-3 py-2 align-top">
+                  <span className="font-medium">{f.profesional.nombresCompletos}</span>
+                  <span className="block text-xs text-foreground/60">{f.profesional.especialidad}</span>
+                </td>
+                {dias.map((d) => {
+                  const delDia = f.items.filter((i) => i.fecha === d)
+                  return (
+                    <td key={d} className="min-w-[120px] space-y-1 px-1 py-2 align-top">
+                      {delDia.length === 0 && <span className="text-[11px] text-foreground/30">—</span>}
+                      {delDia.map((i) => (
+                        <button
+                          key={i.citaId}
+                          type="button"
+                          onClick={() => onSeleccionar(i)}
+                          title={`${i.horaInicio}–${i.horaFin} · ${i.paciente}`}
+                          className="block w-full rounded border px-2 py-1 text-left text-[11px] leading-tight hover:brightness-95"
+                          style={{
+                            borderColor: 'currentColor',
+                            backgroundColor: 'color-mix(in srgb, currentColor 10%, white)',
+                            color: colorEstado[i.estadoId] ?? '#475569',
+                          }}
+                        >
+                          <span className="flex items-center justify-between gap-1">
+                            <span className="font-semibold">{i.horaInicio}</span>
+                            <span className={`rounded-full border px-1 text-[8px] ${estadoBadge(i.estadoId)}`}>
+                              {i.estado}
+                            </span>
+                          </span>
+                          <span className="truncate">{i.paciente}</span>
+                        </button>
+                      ))}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -526,20 +899,464 @@ function TimelineDetalle({ filas }: { filas: FilaAgenda[] }) {
   )
 }
 
+/** Mes: rejilla de días; cada celda lista las citas del día. */
+function TimelineMensual({
+  items,
+  fecha,
+  onDia,
+  onSeleccionar,
+}: {
+  items: AgendaDiaItemDto[]
+  fecha: string
+  onDia: (dia: string) => void
+  onSeleccionar: (i: AgendaDiaItemDto) => void
+}) {
+  const { primero, ultimo } = primerUltimoDiaMes(fecha)
+  const inicioSem = new Date(`${primero}T00:00:00`)
+  const offset = inicioSem.getDay() === 0 ? 6 : inicioSem.getDay() - 1
+  const inicio = new Date(`${primero}T00:00:00`)
+  inicio.setDate(inicio.getDate() - offset)
+  const ultimoDia = new Date(`${ultimo}T00:00:00`)
+  const celdas: string[] = []
+  let cursor = new Date(inicio)
+  while (cursor <= ultimoDia) {
+    const m = String(cursor.getMonth() + 1).padStart(2, '0')
+    const d = String(cursor.getDate()).padStart(2, '0')
+    celdas.push(`${cursor.getFullYear()}-${m}-${d}`)
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  const enMes = (dia: string) => dia >= primero && dia <= ultimo
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-white">
+      <div className="grid grid-cols-7 border-b border-border bg-muted text-center text-xs font-medium uppercase tracking-wide text-foreground/60">
+        {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((d) => (
+          <div key={d} className="py-2">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {celdas.map((dia) => {
+          const delDia = items.filter((i) => i.fecha === dia)
+          return (
+            <div
+              key={dia}
+              className={`min-h-[70px] border-b border-r border-border p-1 ${
+                enMes(dia) ? '' : 'bg-muted/40'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => onDia(dia)}
+                className={`mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+                  dia === hoyISO()
+                    ? 'bg-primary font-bold text-white'
+                    : enMes(dia)
+                      ? 'text-foreground/80 hover:bg-muted'
+                      : 'text-foreground/30'
+                }`}
+              >
+                {new Date(`${dia}T00:00:00`).getDate()}
+              </button>
+              <div className="space-y-0.5">
+                {delDia.slice(0, 3).map((i) => (
+                  <button
+                    key={i.citaId}
+                    type="button"
+                    onClick={() => onSeleccionar(i)}
+                    title={`${i.profesionalNombre} · ${i.horaInicio}–${i.horaFin} · ${i.paciente}`}
+                    className="block w-full truncate rounded px-1 text-left text-[10px] leading-tight hover:brightness-95"
+                    style={{
+                      backgroundColor: `color-mix(in srgb, ${colorEstado[i.estadoId] ?? '#475569'} 14%, white)`,
+                      color: colorEstado[i.estadoId] ?? '#475569',
+                    }}
+                  >
+                    {i.horaInicio} {i.paciente}
+                  </button>
+                ))}
+                {delDia.length > 3 && (
+                  <span className="block text-[10px] text-foreground/50">+{delDia.length - 3} más</span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Vista lista: tabla de citas ordenada. */
+function VistaLista({
+  items,
+  onSeleccionar,
+}: {
+  items: AgendaDiaItemDto[]
+  onSeleccionar: (i: AgendaDiaItemDto) => void
+}) {
+  if (items.length === 0)
+    return (
+      <div className="rounded-lg border border-border bg-white p-10 text-center text-sm text-foreground/60">
+        No hay citas en el rango seleccionado.
+      </div>
+    )
+  const ordenados = [...items].sort((a, b) =>
+    `${a.fecha}${a.horaInicio}`.localeCompare(`${b.fecha}${b.horaInicio}`),
+  )
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-white">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-foreground/60">
+              <th className="px-4 py-3">Fecha</th>
+              <th className="px-4 py-3">Hora</th>
+              <th className="px-4 py-3">Profesional</th>
+              <th className="px-4 py-3">Paciente</th>
+              <th className="px-4 py-3">Tipo</th>
+              <th className="px-4 py-3">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ordenados.map((i) => (
+              <tr
+                key={i.citaId}
+                onClick={() => onSeleccionar(i)}
+                className="cursor-pointer border-t border-border first:border-t-0 hover:bg-muted/40"
+              >
+                <td className="whitespace-nowrap px-4 py-3">{formatFecha(i.fecha)}</td>
+                <td className="whitespace-nowrap px-4 py-3 font-semibold">{i.horaInicio}</td>
+                <td className="px-4 py-3">{i.profesionalNombre}</td>
+                <td className="px-4 py-3">{i.paciente}</td>
+                <td className="px-4 py-3">{i.tipoCita}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(i.estadoId)}`}>
+                    {i.estado}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/** Hint para NuevaCitaView cuando se agenda desde un slot libre. */
+type CitaHint = {
+  fechaHora: string
+  profesionalId?: number
+  tipoCitaId?: number
+  consultorioSala?: string | null
+  motivo?: string
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PANEL LATERAL DE DETALLE (Fase 2 — item 6)
+// ══════════════════════════════════════════════════════════════
+function PanelDetalleCita({
+  cita,
+  onCerrar,
+  onChange,
+}: {
+  cita: AgendaDiaItemDto | null
+  onCerrar: () => void
+  onChange: () => void
+}) {
+  const [detalle, setDetalle] = useState<CitaDto | null>(null)
+  const [historial, setHistorial] = useState<HistorialEstadoDto[]>([])
+  const [cargando, setCargando] = useState(false)
+  const [accion, setAccion] = useState<'confirmar' | 'iniciar' | 'realizar' | 'noasistio' | 'reprogramar' | 'cancelar' | null>(null)
+  const [motivo, setMotivo] = useState('')
+  const [nuevaFecha, setNuevaFecha] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!cita) {
+      setDetalle(null)
+      setHistorial([])
+      setAccion(null)
+      setError(null)
+      return
+    }
+    setCargando(true)
+    setError(null)
+    setAccion(null)
+    api
+      .cita(cita.citaId)
+      .then((c) => {
+        setDetalle(c)
+        setNuevaFecha(c.fechaHora.slice(0, 16))
+        return api.historialCita(c.id)
+      })
+      .then(setHistorial)
+      .catch((e) => setError(msgError(e)))
+      .finally(() => setCargando(false))
+  }, [cita?.citaId])
+
+  if (!cita) {
+    return (
+      <div className="rounded-lg border border-border bg-white p-6 text-center text-sm text-foreground/60">
+        Seleccione una cita para ver su detalle, historial y acciones.
+      </div>
+    )
+  }
+
+  async function ejecutarAccion(): Promise<void> {
+    if (!detalle) return
+    setEnviando(true)
+    setError(null)
+    try {
+      if (accion === 'cancelar' && !motivo.trim()) {
+        setError('La cancelación requiere un motivo.')
+        setEnviando(false)
+        return
+      }
+      if (accion === 'reprogramar') {
+        if (!nuevaFecha) {
+          setError('Seleccione la nueva fecha y hora.')
+          setEnviando(false)
+          return
+        }
+        await api.modificarCita(detalle.id, {
+          nuevaFechaHora: new Date(nuevaFecha).toISOString(),
+          motivo: motivo || null,
+        })
+      } else if (accion === 'cancelar') {
+        await api.cancelarCita(detalle.id, { motivo: motivo.trim() })
+      } else if (accion) {
+        await api.cambiarEstadoCita(detalle.id, {
+          nuevoEstadoId: {
+            confirmar: 2,
+            iniciar: 3,
+            realizar: 4,
+            noasistio: 6,
+          }[accion],
+          motivo: motivo || null,
+        })
+      }
+      setMotivo('')
+      setAccion(null)
+      onChange()
+      const c = await api.cita(detalle.id)
+      setDetalle(c)
+      setHistorial(await api.historialCita(c.id))
+    } catch (e) {
+      setError(msgError(e))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  const acciones: { id: 'confirmar' | 'iniciar' | 'realizar' | 'noasistio'; label: string }[] = []
+  if ([1, 7].includes(cita.estadoId)) acciones.push({ id: 'confirmar', label: 'Confirmar' })
+  if ([1, 2, 7].includes(cita.estadoId)) acciones.push({ id: 'iniciar', label: 'Iniciar atención' })
+  if ([2].includes(cita.estadoId)) acciones.push({ id: 'noasistio', label: 'No asistió' })
+  if ([3].includes(cita.estadoId)) acciones.push({ id: 'realizar', label: 'Marcar realizada' })
+
+  return (
+    <div className="sticky top-4 rounded-lg border border-border bg-white p-5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Cita #{cita.citaId}</h2>
+          <span className={`mt-1 inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(cita.estadoId)}`}>
+            {cita.estado}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onCerrar}
+          aria-label="Cerrar"
+          className="rounded-md border border-border px-2 py-0.5 text-sm hover:bg-muted"
+        >
+          ✕
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-3">
+          <Aviso msg={error} />
+        </div>
+      )}
+
+      {cargando || !detalle ? (
+        <Spinner texto="Cargando detalle…" />
+      ) : (
+        <>
+          <dl className="space-y-2 text-sm">
+            <FilaDetalle k="Fecha" v={`${formatFecha(cita.fecha)} · ${cita.horaInicio}–${cita.horaFin}`} />
+            <FilaDetalle k="Paciente" v={`${cita.paciente} (${cita.identificacion})`} />
+            <FilaDetalle k="Edad" v={`${cita.edadPaciente} años · ${cita.sexo === 'M' ? 'M' : 'F'}`} />
+            <FilaDetalle k="Profesional" v={`${cita.profesionalNombre}${cita.especialidad ? ` · ${cita.especialidad}` : ''}`} />
+            <FilaDetalle k="Tipo de cita" v={`${cita.tipoCita} · ${cita.duracionMinutos} min`} />
+            <FilaDetalle k="Aseguradora" v={cita.aseguradora ?? '—'} />
+            <FilaDetalle k="Régimen" v={cita.regimen ?? '—'} />
+            <FilaDetalle k="Motivo" v={cita.motivoConsulta ?? '—'} />
+            <FilaDetalle k="Observaciones" v={detalle.observaciones ?? '—'} />
+            {detalle.teamsJoinUrl && (
+              <div className="pt-1">
+                <a
+                  href={detalle.teamsJoinUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Unirse a Teams →
+                </a>
+              </div>
+            )}
+          </dl>
+
+          {/* Acciones del ciclo de vida */}
+          <div className="mt-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">Acciones</p>
+            <div className="flex flex-wrap gap-2">
+              {acciones.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setAccion(a.id)}
+                  className="rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                >
+                  {a.label}
+                </button>
+              ))}
+              {[1, 2, 7].includes(cita.estadoId) && (
+                <button
+                  type="button"
+                  onClick={() => setAccion('reprogramar')}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-muted"
+                >
+                  Reprogramar
+                </button>
+              )}
+              {[1, 2, 3, 7].includes(cita.estadoId) && (
+                <button
+                  type="button"
+                  onClick={() => setAccion('cancelar')}
+                  className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+
+            {accion && (
+              <form
+                className="mt-3 rounded-md border border-border bg-muted/40 p-3"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void ejecutarAccion()
+                }}
+              >
+                {accion === 'reprogramar' && (
+                  <label className="block text-sm font-medium">
+                    Nueva fecha y hora
+                    <input
+                      type="datetime-local"
+                      value={nuevaFecha}
+                      onChange={(e) => setNuevaFecha(e.target.value)}
+                      className={inputCls}
+                    />
+                  </label>
+                )}
+                {(accion === 'cancelar' || accion === 'reprogramar') && (
+                  <label className="mt-2 block text-sm font-medium">
+                    Motivo
+                    <input
+                      type="text"
+                      value={motivo}
+                      onChange={(e) => setMotivo(e.target.value)}
+                      className={inputCls}
+                      placeholder="Obligatorio para cancelar / opcional para reprogramar"
+                    />
+                  </label>
+                )}
+                {accion === 'noasistio' && (
+                  <p className="text-xs text-foreground/60">
+                    Se marcará la cita como no asistió.
+                  </p>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={enviando}
+                    className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+                  >
+                    {enviando ? 'Guardando…' : 'Confirmar acción'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccion(null)
+                      setError(null)
+                      setMotivo('')
+                    }}
+                    className="rounded-md border border-border px-4 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-muted"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          {/* Historial */}
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">Historial ({historial.length})</p>
+            {historial.length === 0 ? (
+              <p className="text-sm text-foreground/50">Sin cambios registrados.</p>
+            ) : (
+              <ul className="relative space-y-3 pl-4">
+                {historial.map((h) => (
+                  <li key={h.id} className="relative border-l border-border pl-3">
+                    <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-primary" />
+                    <p className="text-xs">
+                      <span className="font-semibold">{h.estadoNuevo}</span>
+                      {h.estadoAnterior && <span className="text-foreground/50"> (desde {h.estadoAnterior})</span>}
+                    </p>
+                    <p className="text-[11px] text-foreground/50">
+                      {formatFechaHora(h.fechaCambio)} · {h.cambiadoPor} · {h.origen}
+                    </p>
+                    {h.motivo && <p className="text-[11px] text-foreground/60">«{h.motivo}»</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function FilaDetalle({ k, v }: { k: string; v: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-foreground/50">{k}</dt>
+      <dd className="font-medium">{v}</dd>
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════════════════════
 //  NUEVA CITA
 // ══════════════════════════════════════════════════════════════
-function NuevaCitaView() {
+function NuevaCitaView({ hint }: { hint: CitaHint | null }) {
   const catalogo = useCatalogos()
   const configBusqueda = useConfigBusqueda()
   const [docBusqueda, setDocBusqueda] = useState('')
   const [pacientes, setPacientes] = useState<PacienteListaDto | null>(null)
   const [pacienteId, setPacienteId] = useState<number | null>(null)
   const [pacienteNombre, setPacienteNombre] = useState('')
-  const [profId, setProfId] = useState<number | null>(null)
-  const [tipoCitaId, setTipoCitaId] = useState<number | null>(null)
-  const [fechaHora, setFechaHora] = useState('')
-  const [motivo, setMotivo] = useState('')
+  const [profId, setProfId] = useState<number | null>(hint?.profesionalId ?? null)
+  const [tipoCitaId, setTipoCitaId] = useState<number | null>(hint?.tipoCitaId ?? null)
+  const [fechaHora, setFechaHora] = useState(
+    hint?.fechaHora ? hint.fechaHora.slice(0, 16) : '',
+  )
+  const [motivo, setMotivo] = useState(hint?.motivo ?? '')
   const [observaciones, setObservaciones] = useState('')
   const [aseguradoraId, setAseguradoraId] = useState<number | null>(null)
   const [tipoUsuarioId, setTipoUsuarioId] = useState<number | null>(null)

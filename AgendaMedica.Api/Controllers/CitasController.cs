@@ -134,6 +134,36 @@ public class CitasController : ControllerBase
         return Ok(resultado);
     }
 
+    // ── GET v1/citas/agenda-rango (Fase 2: semanal/mensual/lista) ─
+    [HttpGet("agenda-rango")]
+    [ProducesResponseType(typeof(List<AgendaDiaItemDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> AgendaRango(
+        [FromQuery] string profesionalesIds,
+        [FromQuery] string fechaDesde,
+        [FromQuery] string fechaHasta,
+        CancellationToken  ct)
+    {
+        var ids = (profesionalesIds ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s.Trim(), out var i) ? i : -1)
+            .Where(i => i > 0)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+            return BadRequest(new { codigo = "PROFESIONALES_INVALIDOS",
+                                    mensaje = "Indique al menos un profesionalId." });
+
+        if (!DateOnly.TryParse(fechaDesde, out var desde) ||
+            !DateOnly.TryParse(fechaHasta, out var hasta))
+            return BadRequest(new { codigo = "FECHA_INVALIDA",
+                                    mensaje = "El formato de fechas debe ser yyyy-MM-dd." });
+
+        var resultado = await _mediator.Send(
+            new ObtenerAgendaRangoQuery(ids, desde, hasta), ct);
+        return Ok(resultado);
+    }
+
     // ── GET v1/citas/disponibilidad ───────────────────────────
     [HttpGet("disponibilidad")]
     [ProducesResponseType(typeof(DisponibilidadDto), StatusCodes.Status200OK)]
