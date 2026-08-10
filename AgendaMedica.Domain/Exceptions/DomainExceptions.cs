@@ -52,3 +52,14 @@ public class EntidadDuplicadaException : DomainException
     public EntidadDuplicadaException(string entidad, string criterio)
         : base($"Ya existe un {entidad} con {criterio}.") { }
 }
+
+/// <summary>
+/// Se lanza cuando se intenta reservar un turno que otro usuario
+/// ya tiene bloqueado. La capa de API la captura y devuelve HTTP 409.
+/// </summary>
+public class TurnoBloqueadoException : DomainException
+{
+    public TurnoBloqueadoException(DateTime fechaHora, string duenio)
+        : base($"El turno de las {fechaHora:HH:mm} del {fechaHora:dd/MM/yyyy} " +
+               $"está siendo reservado por {duenio}. Intente con otro horario.") { }
+}

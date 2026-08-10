@@ -7,6 +7,7 @@ using AgendaMedica.Application.Commands;
 using AgendaMedica.Application.Commands.CrearCita;
 using AgendaMedica.Application.DTOs;
 using AgendaMedica.Application.Queries;
+using AgendaMedica.Domain.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -47,7 +48,8 @@ public class CitasController : ControllerBase
             TipoUsuarioId:  request.TipoUsuarioId,   // ← v1.1
             MotivoConsulta: request.MotivoConsulta,
             Observaciones:  request.Observaciones,
-            CreadoPor:      ObtenerUsuario()
+            CreadoPor:      ObtenerUsuario(),
+            BloqueoId:      request.BloqueoId        // ← Fase 3
         );
 
         var resultado = await _mediator.Send(command, ct);
@@ -182,6 +184,54 @@ public class CitasController : ControllerBase
         return Ok(resultado);
     }
 
+    // ── POST v1/citas/bloqueos (Fase 3: reserva preventiva 5 min) ─
+    [HttpPost("bloqueos")]
+    [ProducesResponseType(typeof(ResultadoReservaBloqueo), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ReservarBloqueo(
+        [FromBody] ReservarBloqueoRequest request, CancellationToken ct)
+    {
+        var resultado = await _mediator.Send(new ReservarBloqueoCommand(
+            ProfesionalId: request.ProfesionalId,
+            Fecha:         request.Fecha,
+            HoraInicio:    request.HoraInicio,
+            Usuario:       ObtenerUsuario()
+        ), ct);
+
+        if (!resultado.Exitoso)
+            return Conflict(new { codigo = "TURNO_BLOQUEADO",
+                                  mensaje = resultado.MotivoRechazo });
+
+        return Ok(resultado);
+    }
+
+    // ── PUT v1/citas/bloqueos/{id} (renovar otros 5 min) ───────
+    [HttpPut("bloqueos/{bloqueoId}")]
+    [ProducesResponseType(typeof(ResultadoReservaBloqueo), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RenovarBloqueo(
+        string bloqueoId, CancellationToken ct)
+    {
+        var resultado = await _mediator.Send(
+            new RenovarBloqueoCommand(bloqueoId), ct);
+
+        if (!resultado.Exitoso)
+            return NotFound(new { codigo = "BLOQUEO_NO_ENCONTRADO",
+                                  mensaje = resultado.MotivoRechazo });
+
+        return Ok(resultado);
+    }
+
+    // ── DELETE v1/citas/bloqueos/{id} (liberar) ────────────────
+    [HttpDelete("bloqueos/{bloqueoId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> LiberarBloqueo(
+        string bloqueoId, CancellationToken ct)
+    {
+        await _mediator.Send(new LiberarBloqueoCommand(bloqueoId), ct);
+        return NoContent();
+    }
+
     private string ObtenerUsuario()
         => HttpContext.User.Identity?.Name ?? "dev-user";
 }
@@ -195,7 +245,14 @@ public record CrearCitaRequest(
     int?     AseguradoraId,    // ← v1.1: null = tomar del paciente
     byte?    TipoUsuarioId,    // ← v1.1: null = tomar del paciente
     string?  MotivoConsulta,
-    string?  Observaciones
+    string?  Observaciones,
+    string?  BloqueoId = null  // ← Fase 3: token de bloqueo preventivo
+);
+
+public record ReservarBloqueoRequest(
+    int      ProfesionalId,
+    DateOnly Fecha,
+    string   HoraInicio
 );
 
 public record ModificarCitaRequest(

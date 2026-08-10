@@ -180,6 +180,82 @@ public class CitaRepositorio : RepositorioBase<Cita>, ICitaRepositorio
             .Take(cantidad)
             .ToListAsync(ct);
     }
+
+    // ── Operaciones atómicas (Fase 3 — concurrencia) ─────────
+    // pg_advisory_xact_lock serializa TODAS las operaciones de citas
+    // del mismo profesional: el lock se adquiere, se re-valida el
+    // traslape y se persiste dentro de LA MISMA transacción.
+    private static Task AdquirirLockProfesionalAsync(
+        AgendaDbContext db, int profesionalId, CancellationToken ct)
+        => db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtext('agenda-int:' || {profesionalId}))", ct);
+
+    public async Task<bool> CrearCitaAtomicoAsync(
+        Cita cita, DateTime fechaHoraInicio, DateTime fechaHoraFin,
+        CancellationToken ct = default)
+    {
+        var strategy = _db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                await AdquirirLockProfesionalAsync(_db, cita.ProfesionalId, ct);
+
+                var traslape = await ExisteTraslapeAsync(
+                    cita.ProfesionalId, fechaHoraInicio, fechaHoraFin, null, ct);
+                if (traslape)
+                {
+                    await tx.RollbackAsync(ct);
+                    return false;
+                }
+
+                await _set.AddAsync(cita, ct);
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return true;
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
+        });
+    }
+
+    public async Task<bool> ModificarCitaAtomicoAsync(
+        Cita cita, DateTime fechaHoraInicio, DateTime fechaHoraFin,
+        CancellationToken ct = default)
+    {
+        var strategy = _db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                await AdquirirLockProfesionalAsync(_db, cita.ProfesionalId, ct);
+
+                var traslape = await ExisteTraslapeAsync(
+                    cita.ProfesionalId, fechaHoraInicio, fechaHoraFin,
+                    cita.Id, ct);
+                if (traslape)
+                {
+                    await tx.RollbackAsync(ct);
+                    return false;
+                }
+
+                _set.Update(cita);
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return true;
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
+        });
+    }
 }
 
 // ══════════════════════════════════════════════════════════════

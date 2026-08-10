@@ -79,6 +79,25 @@ public interface ICitaRepositorio : IRepositorio<Cita>
 
     Task<IList<OutboxMensaje>> ObtenerOutboxPendientesAsync(
         int cantidad = 10, CancellationToken ct = default);
+
+    /// <summary>
+    /// Crea la cita de forma atómica contra la BD usando un advisory
+    /// lock de PostgreSQL por profesional (evita doble agendamiento
+    /// concurrente). Re-valida el traslape dentro de la transacción.
+    /// Devuelve false si hubo traslape (sin insertar).
+    /// </summary>
+    Task<bool> CrearCitaAtomicoAsync(
+        Cita cita, DateTime fechaHoraInicio, DateTime fechaHoraFin,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Persiste los cambios de una cita ya cargada re-validando el
+    /// traslape dentro de una transacción con advisory lock por
+    /// profesional. Devuelve false si el nuevo horario choca (sin guardar).
+    /// </summary>
+    Task<bool> ModificarCitaAtomicoAsync(
+        Cita cita, DateTime fechaHoraInicio, DateTime fechaHoraFin,
+        CancellationToken ct = default);
 }
 
 // ── IPacienteRepositorio ──────────────────────────────────────

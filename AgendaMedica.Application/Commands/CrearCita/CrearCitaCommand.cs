@@ -21,22 +21,26 @@ public record CrearCitaCommand(
     byte?    TipoUsuarioId,
     string?  MotivoConsulta,
     string?  Observaciones,
-    string   CreadoPor
+    string   CreadoPor,
+    string?  BloqueoId = null
 ) : IRequest<CitaDto>;
 
 public class CrearCitaHandler : IRequestHandler<CrearCitaCommand, CitaDto>
 {
-    private readonly IUnitOfWork          _uow;
-    private readonly INotificacionService _notificaciones;
+    private readonly IUnitOfWork            _uow;
+    private readonly INotificacionService   _notificaciones;
+    private readonly IBloqueoTurnoServicio  _bloqueos;
     private readonly ILogger<CrearCitaHandler> _logger;
 
     public CrearCitaHandler(
         IUnitOfWork uow,
         INotificacionService notificaciones,
+        IBloqueoTurnoServicio bloqueos,
         ILogger<CrearCitaHandler> logger)
     {
         _uow            = uow;
         _notificaciones = notificaciones;
+        _bloqueos       = bloqueos;
         _logger         = logger;
     }
 
@@ -55,12 +59,20 @@ public class CrearCitaHandler : IRequestHandler<CrearCitaCommand, CitaDto>
         var aseguradoraId = request.AseguradoraId ?? paciente.AseguradoraId;
         var tipoUsuarioId = request.TipoUsuarioId ?? paciente.TipoUsuarioId;
 
-        var fechaHoraFin = request.FechaHora.AddMinutes(tipoCita.DuracionMinutos);
-        var hayTraslape  = await _uow.Citas.ExisteTraslapeAsync(
-            request.ProfesionalId, request.FechaHora, fechaHoraFin, null, ct);
+        // El bloqueo preventivo (si se envió) debe ser el del turno exacto.
+        if (!string.IsNullOrEmpty(request.BloqueoId))
+        {
+            var fecha  = DateOnly.FromDateTime(request.FechaHora);
+            var hora   = request.FechaHora.ToString("HH:mm");
+            var valido = await _bloqueos.EsValidoAsync(
+                request.ProfesionalId, fecha, hora, request.BloqueoId, ct);
 
-        if (hayTraslape)
-            throw new ConflictoHorarioException(request.FechaHora, fechaHoraFin);
+            if (!valido)
+                throw new DomainException(
+                    "El turno seleccionado ya no está reservado. Vuelva a seleccionarlo.");
+        }
+
+        var fechaHoraFin = request.FechaHora.AddMinutes(tipoCita.DuracionMinutos);
 
         var cita = Cita.Crear(
             fechaHora:       request.FechaHora,
@@ -75,8 +87,17 @@ public class CrearCitaHandler : IRequestHandler<CrearCitaCommand, CitaDto>
             observaciones:   request.Observaciones
         );
 
-        await _uow.Citas.AgregarAsync(cita, ct);
-        await _uow.GuardarAsync(ct);
+        // Insert ATOMICO: advisory lock del profesional + re-chequeo
+        // de traslape en la misma transacción (evita doble reserva).
+        var creada = await _uow.Citas.CrearCitaAtomicoAsync(
+            cita, request.FechaHora, fechaHoraFin, ct);
+
+        if (!creada)
+            throw new ConflictoHorarioException(request.FechaHora, fechaHoraFin);
+
+        // El turno ya quedó ocupado: liberar el bloqueo preventivo.
+        if (!string.IsNullOrEmpty(request.BloqueoId))
+            await _bloqueos.LiberarAsync(request.BloqueoId, ct);
 
         var citaCompleta = await _uow.Citas.ObtenerPorIdAsync(cita.Id, ct);
 

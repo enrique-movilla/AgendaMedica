@@ -18,6 +18,7 @@ using AgendaMedica.Infrastructure.Integrations;
 using AgendaMedica.Infrastructure.Jobs;
 using AgendaMedica.Infrastructure.Notifications;
 using AgendaMedica.Infrastructure.Repositories;
+using AgendaMedica.Infrastructure.Servicios;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -102,6 +103,11 @@ public static class InfrastructureServiceExtensions
 // ── Servicio de notificaciones ────────────────────────
         // Scoped: necesita acceso a DbContext (que es Scoped)
         services.AddScoped<INotificacionService, NotificacionService>();
+
+        // ── Bloqueo preventivo de turnos (Fase 3) ───────────────
+        // Singleton + MemoryCache: bloqueos en memoria con TTL de 5 min
+        services.AddMemoryCache();
+        services.AddSingleton<IBloqueoTurnoServicio, BloqueoTurnoServicio>();
 
         // ── Administración de catálogos (patrón adaptador) ─────
         services.AddScoped<IAdministracionCatalogos, CatalogoAdministracionServicio>();

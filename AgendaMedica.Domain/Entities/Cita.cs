@@ -224,7 +224,9 @@ public class Cita : EntidadBase
 
     private static void ValidarFechaHora(DateTime f)
     {
-        if (f <= DateTime.UtcNow)
+        // El sistema guarda horas en hora local (Npgsql legacy timestamp sin zona),
+        // así que la comparación de "futuro" se hace contra el reloj local.
+        if (f <= DateTime.Now)
             throw new DomainException("La fecha y hora de la cita debe ser futura.");
     }
 

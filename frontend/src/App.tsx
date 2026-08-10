@@ -96,6 +96,106 @@ function Exito({ msg }: { msg: string }) {
   )
 }
 
+/** Modal de confirmación tras crear una cita: exige OK/Enter y vuelve a la agenda. */
+function ModalExitoCreacion({ cita, onOk }: { cita: CitaDto; onOk: () => void }) {
+  const botonRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    botonRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault()
+        onOk()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onOk])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onOk}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Cita creada"
+        className="w-full max-w-md rounded-xl border border-border bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Cita creada</p>
+        <div className="mt-4 space-y-2 text-sm">
+          <FilaDetalle k="Cita" v={`#${cita.id}`} />
+          <FilaDetalle k="Paciente" v={cita.paciente.nombresCompletos} />
+          <FilaDetalle k="Fecha y hora" v={formatFechaHora(cita.fechaHora)} />
+          <FilaDetalle k="Profesional" v={cita.profesional.nombresCompletos} />
+          <FilaDetalle k="Tipo" v={cita.tipoCita.nombre} />
+        </div>
+        <button
+          ref={botonRef}
+          type="button"
+          onClick={onOk}
+          className="mt-6 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
+        >
+          OK · Volver a la agenda
+        </button>
+        <p className="mt-2 text-center text-[11px] text-foreground/50">Presione Enter o haga clic en OK</p>
+      </div>
+    </div>
+  )
+}
+
+/** Modal de error/advertencia: texto seleccionable para copiar a soporte. */
+function ModalError({ msg, onCerrar }: { msg: string; onCerrar: () => void }) {
+  const botonRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    botonRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault()
+        onCerrar()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCerrar])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onCerrar}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label="Error o advertencia"
+        className="w-full max-w-md rounded-xl border border-border bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-sm font-semibold uppercase tracking-wide text-rose-700">
+          Error o advertencia
+        </p>
+        <p className="mt-3 max-h-60 select-text overflow-y-auto whitespace-pre-wrap rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {msg}
+        </p>
+        <button
+          ref={botonRef}
+          type="button"
+          onClick={onCerrar}
+          className="mt-5 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
+        >
+          Entendido
+        </button>
+        <p className="mt-2 text-center text-[11px] text-foreground/50">
+          Seleccione el texto para copiarlo · Enter o clic para cerrar
+        </p>
+      </div>
+    </div>
+  )
+}
+
 const inputCls =
   'mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
 
@@ -127,6 +227,11 @@ function formatFechaHora(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+/** La API guarda horas en hora local (sin zona). Evita convertir a UTC (toISOString). */
+function conSegundos(fh: string): string {
+  return fh.length === 16 ? `${fh}:00` : fh
 }
 
 function formatFecha(iso: string): string {
@@ -187,6 +292,32 @@ export default function App() {
   const [vista, setVista] = useState<Vista>('agenda')
   const [configAbierta, setConfigAbierta] = useState(false)
   const [citaHint, setCitaHint] = useState<CitaHint | null>(null)
+  const [agendaEnfoque, setAgendaEnfoque] = useState<{
+    fecha: string
+    profesionalesIds: number[]
+  } | null>(null)
+
+  // Liberar el bloqueo preventivo solo en eventos explícitos (navegación),
+  // NO en cleanup de useEffect: bajo React StrictMode (dev) el efecto se
+  // desmonta y remonta sintéticamente al cargar, lo que liberaba el token
+  // de inmediato y provocaba "El turno seleccionado ya no está reservado".
+  function navegar(v: Vista) {
+    if (v !== 'nueva-cita' && citaHint?.bloqueoId) {
+      void api.liberarBloqueo(citaHint.bloqueoId).catch(() => {})
+    }
+    setVista(v)
+  }
+
+  // Al confirmar la cita creada (modal OK): volver a la agenda del día y
+  // profesional de la cita, y limpiar el hint/reserva.
+  function finalizarNuevaCita(cita: CitaDto) {
+    setCitaHint(null)
+    setAgendaEnfoque({
+      fecha: cita.fechaHora.slice(0, 10),
+      profesionalesIds: [cita.profesional.id],
+    })
+    setVista('agenda')
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -212,7 +343,7 @@ export default function App() {
               <button
                 key={n.id}
                 type="button"
-                onClick={() => setVista(n.id)}
+                onClick={() => navegar(n.id)}
                 aria-current={vista === n.id ? 'page' : undefined}
                 className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                   vista === n.id ? 'bg-primary text-white' : 'text-foreground/80 hover:bg-muted'
@@ -238,13 +369,38 @@ export default function App() {
         <main className="flex-1 px-6 py-6 sm:px-8">
           {vista === 'agenda' && (
             <AgendaView
-              onCrearCita={(hint) => {
-                setCitaHint(hint)
-                setVista('nueva-cita')
+              fechaInicial={agendaEnfoque?.fecha}
+              profesionalesIniciales={agendaEnfoque?.profesionalesIds}
+              onCrearCita={async (hint) => {
+                if (citaHint?.bloqueoId) {
+                  void api.liberarBloqueo(citaHint.bloqueoId).catch(() => {})
+                }
+                let bloqueoId: string | null = null
+                try {
+                  const d = new Date(hint.fechaHora)
+                  const fecha = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+                    d.getDate(),
+                  ).padStart(2, '0')}`
+                  const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                  if (hint.profesionalId) {
+                    const r = await api.reservarBloqueo({
+                      profesionalId: hint.profesionalId,
+                      fecha,
+                      horaInicio: hora,
+                    })
+                    if (r.exitoso) bloqueoId = r.bloqueoId ?? null
+                  }
+                } catch {
+                  // si la reserva falla, agendar igual (la API valida de nuevo)
+                }
+                setCitaHint({ ...hint, bloqueoId })
+                navegar('nueva-cita')
               }}
             />
           )}
-          {vista === 'nueva-cita' && <NuevaCitaView hint={citaHint} />}
+          {vista === 'nueva-cita' && (
+            <NuevaCitaView hint={citaHint} onFinalizar={finalizarNuevaCita} />
+          )}
           {vista === 'pacientes' && <PacientesView />}
           {vista === 'catalogos' && <CatalogosView />}
         </main>
@@ -305,11 +461,19 @@ const ESTADOS_CITA: { id: number; nombre: string }[] = [
   { id: 7, nombre: 'Reprogramada' },
 ]
 
-function AgendaView({ onCrearCita }: { onCrearCita?: (hint: CitaHint) => void }) {
+function AgendaView({
+  onCrearCita,
+  fechaInicial,
+  profesionalesIniciales,
+}: {
+  onCrearCita?: (hint: CitaHint) => void
+  fechaInicial?: string
+  profesionalesIniciales?: number[]
+}) {
   const catalogo = useCatalogos()
   const [vista, setVista] = useState<VistaAgenda>('diario')
-  const [profIds, setProfIds] = useState<number[]>([])
-  const [fecha, setFecha] = useState(hoyISO())
+  const [profIds, setProfIds] = useState<number[]>(profesionalesIniciales ?? [])
+  const [fecha, setFecha] = useState(fechaInicial ?? hoyISO())
   const [desdeLista, setDesdeLista] = useState(lunesDeLaSemana(hoyISO()))
   const [hastaLista, setHastaLista] = useState(hoyISO())
   const [estadosActivos, setEstadosActivos] = useState<number[]>(ESTADOS_CITA.map((e) => e.id))
@@ -385,6 +549,21 @@ function AgendaView({ onCrearCita }: { onCrearCita?: (hint: CitaHint) => void })
     )
   }
 
+  // Drag & drop (Fase 3 — item 11): reprogramar arrastrando la cita a un slot libre.
+  async function reprogramarArrastre(citaId: number, fechaHoraNueva: string) {
+    setError(null)
+    try {
+      await api.modificarCita(citaId, {
+        nuevaFechaHora: conSegundos(fechaHoraNueva),
+        motivo: 'Reprogramada por arrastre',
+      })
+      setSel(null)
+      setRefresh((x) => x + 1)
+    } catch (e) {
+      setError(msgError(e))
+    }
+  }
+
   const filas: FilaAgenda[] = profIds
     .map((pid) => catalogo.profesionales.find((p) => p.id === pid))
     .filter((p): p is ProfesionalResumenDto => Boolean(p))
@@ -408,11 +587,13 @@ function AgendaView({ onCrearCita }: { onCrearCita?: (hint: CitaHint) => void })
           const d = await api.disponibilidad({ profesionalId: pid, fecha: dia, tipoCitaId })
           const libre = d.slotsLibres.find((s) => s.disponible)
           if (libre) {
-            setVista('diario')
-            setFecha(dia)
-            setTurnoEncontrado(
-              `${d.nombreProfesional} · ${dia} ${libre.horaInicio}–${libre.horaFin} (${d.duracionSlotMinutos} min)`,
-            )
+            // Llevar directo a la creación con médico, fecha y hora preseleccionados
+            // (el flujo reserva el turno y navega a la pantalla de nueva cita).
+            onCrearCita?.({
+              fechaHora: `${dia}T${libre.horaInicio}:00`,
+              profesionalId: pid,
+              consultorioSala: libre.consultorioSala,
+            })
             return
           }
         }
@@ -580,10 +761,16 @@ function AgendaView({ onCrearCita }: { onCrearCita?: (hint: CitaHint) => void })
                 fecha={fecha}
                 onSeleccionar={(i) => setSel(i)}
                 onCrearCita={onCrearCita}
+                onReprogramar={(citaId, fhNueva) => reprogramarArrastre(citaId, fhNueva)}
               />
             )}
             {vista === 'semanal' && (
-              <TimelineSemanal filas={filas} desde={desde} onSeleccionar={(i) => setSel(i)} />
+              <TimelineSemanal
+                filas={filas}
+                desde={desde}
+                onSeleccionar={(i) => setSel(i)}
+                onReprogramar={(citaId, fhNueva) => reprogramarArrastre(citaId, fhNueva)}
+              />
             )}
             {vista === 'mensual' && (
               <TimelineMensual
@@ -639,15 +826,26 @@ function TimelineDia({
   fecha,
   onSeleccionar,
   onCrearCita,
+  onReprogramar,
 }: {
   filas: FilaAgenda[]
   slotsPorProf: Record<number, SlotLibreDto[]>
   fecha: string
   onSeleccionar: (i: AgendaDiaItemDto) => void
   onCrearCita?: (hint: CitaHint) => void
+  onReprogramar?: (citaId: number, fechaHoraNueva: string) => void | Promise<void>
 }) {
   const rango = HORA_FIN - HORA_INICIO
   const todas = filas.flatMap((f) => f.items)
+
+  // Estados desde los que se permite arrastrar (transición válida a Reprogramada).
+  const REPROGRAMABLES = new Set([1, 2])
+  const [arrastrando, setArrastrando] = useState<number | null>(null)
+
+  function alSoltarSlots(s: SlotLibreDto, citaId: number | null) {
+    if (!citaId || !onReprogramar) return
+    void onReprogramar(citaId, `${fecha}T${s.horaInicio}:00`)
+  }
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-white">
@@ -717,7 +915,15 @@ function TimelineDia({
                             consultorioSala: s.consultorioSala,
                           })
                         }
-                        title={`Libre ${s.horaInicio}–${s.horaFin} · hacer clic para agendar`}
+                        onDragOver={(e) => {
+                          if (arrastrando) e.preventDefault()
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          alSoltarSlots(s, arrastrando)
+                          setArrastrando(null)
+                        }}
+                        title={`Libre ${s.horaInicio}–${s.horaFin} · hacer clic para agendar${arrastrando ? ' · soltar para reprogramar' : ''}`}
                         className="absolute top-1.5 flex items-center justify-center rounded-md border border-dashed border-emerald-300 bg-emerald-50/70 text-center text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
                         style={{
                           left: `${left}%`,
@@ -742,13 +948,23 @@ function TimelineDia({
                       <MenuTresPuntos onDetalle={() => onSeleccionar(i)} />
                       <button
                         type="button"
+                        draggable={REPROGRAMABLES.has(i.estadoId) && Boolean(onReprogramar)}
+                        onDragStart={(e) => {
+                          setArrastrando(i.citaId)
+                          e.dataTransfer.effectAllowed = 'move'
+                          e.dataTransfer.setData('text/plain', String(i.citaId))
+                        }}
+                        onDragEnd={() => setArrastrando(null)}
                         onClick={() => onSeleccionar(i)}
-                        title={`${i.horaInicio}–${i.horaFin} · ${i.paciente}`}
+                        title={`${i.horaInicio}–${i.horaFin} · ${i.paciente}${REPROGRAMABLES.has(i.estadoId) && onReprogramar ? ' · arrastrar para reprogramar' : ''}`}
                         className="flex h-[64px] w-full flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] leading-tight transition-colors hover:z-20 hover:brightness-95"
                         style={{
                           borderColor: 'currentColor',
                           backgroundColor: 'color-mix(in srgb, currentColor 12%, white)',
                           color: colorEstado[i.estadoId] ?? '#475569',
+                          ...(arrastrando === i.citaId
+                            ? { opacity: 0.4, boxShadow: '0 0 0 2px rgba(2,132,199,0.4)' }
+                            : {}),
                         }}
                       >
                         <span className="flex items-center justify-between gap-1 font-medium">
@@ -833,12 +1049,17 @@ function TimelineSemanal({
   filas,
   desde,
   onSeleccionar,
+  onReprogramar,
 }: {
   filas: FilaAgenda[]
   desde: string
   onSeleccionar: (i: AgendaDiaItemDto) => void
+  onReprogramar?: (citaId: number, fechaHoraNueva: string) => void | Promise<void>
 }) {
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(desde, i))
+  // Solo estados con transición válida a Reprogramada (ver _transiciones del dominio).
+  const REPROGRAMABLES = new Set([1, 2])
+  const [arrastre, setArrastre] = useState<{ citaId: number; hora: string } | null>(null)
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="overflow-x-auto">
@@ -863,14 +1084,37 @@ function TimelineSemanal({
                 {dias.map((d) => {
                   const delDia = f.items.filter((i) => i.fecha === d)
                   return (
-                    <td key={d} className="min-w-[120px] space-y-1 px-1 py-2 align-top">
+                    <td
+                      key={d}
+                      onDragOver={(e) => {
+                        if (arrastre) e.preventDefault()
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        if (arrastre && onReprogramar) {
+                          void onReprogramar(arrastre.citaId, `${d}T${arrastre.hora}:00`)
+                        }
+                        setArrastre(null)
+                      }}
+                      className={`min-w-[120px] space-y-1 px-1 py-2 align-top transition-colors ${
+                        arrastre ? 'bg-emerald-50/60 ring-2 ring-inset ring-emerald-300' : ''
+                      }`}
+                      title={arrastre ? `Soltar en ${diaANombre(new Date(`${d}T00:00:00`))} para reprogramar` : undefined}
+                    >
                       {delDia.length === 0 && <span className="text-[11px] text-foreground/30">—</span>}
                       {delDia.map((i) => (
                         <button
                           key={i.citaId}
                           type="button"
+                          draggable={REPROGRAMABLES.has(i.estadoId) && Boolean(onReprogramar)}
+                          onDragStart={(e) => {
+                            setArrastre({ citaId: i.citaId, hora: i.horaInicio })
+                            e.dataTransfer.effectAllowed = 'move'
+                            e.dataTransfer.setData('text/plain', String(i.citaId))
+                          }}
+                          onDragEnd={() => setArrastre(null)}
                           onClick={() => onSeleccionar(i)}
-                          title={`${i.horaInicio}–${i.horaFin} · ${i.paciente}`}
+                          title={`${i.horaInicio}–${i.horaFin} · ${i.paciente}${REPROGRAMABLES.has(i.estadoId) && onReprogramar ? ' · arrastrar a otro día para reprogramar' : ''}`}
                           className="block w-full rounded border px-2 py-1 text-left text-[11px] leading-tight hover:brightness-95"
                           style={{
                             borderColor: 'currentColor',
@@ -1050,6 +1294,7 @@ type CitaHint = {
   tipoCitaId?: number
   consultorioSala?: string | null
   motivo?: string
+  bloqueoId?: string | null
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1121,7 +1366,7 @@ function PanelDetalleCita({
           return
         }
         await api.modificarCita(detalle.id, {
-          nuevaFechaHora: new Date(nuevaFecha).toISOString(),
+          nuevaFechaHora: conSegundos(nuevaFecha),
           motivo: motivo || null,
         })
       } else if (accion === 'cancelar') {
@@ -1344,7 +1589,13 @@ function FilaDetalle({ k, v }: { k: string; v: string }) {
 // ══════════════════════════════════════════════════════════════
 //  NUEVA CITA
 // ══════════════════════════════════════════════════════════════
-function NuevaCitaView({ hint }: { hint: CitaHint | null }) {
+function NuevaCitaView({
+  hint,
+  onFinalizar,
+}: {
+  hint: CitaHint | null
+  onFinalizar?: (cita: CitaDto) => void
+}) {
   const catalogo = useCatalogos()
   const configBusqueda = useConfigBusqueda()
   const [docBusqueda, setDocBusqueda] = useState('')
@@ -1389,7 +1640,7 @@ function NuevaCitaView({ hint }: { hint: CitaHint | null }) {
     setEnviando(true)
     try {
       const creada = await api.crearCita({
-        fechaHora: new Date(fechaHora).toISOString(),
+        fechaHora: conSegundos(fechaHora),
         pacienteId,
         profesionalId: profId,
         tipoCitaId,
@@ -1397,6 +1648,7 @@ function NuevaCitaView({ hint }: { hint: CitaHint | null }) {
         tipoUsuarioId: tipoUsuarioId ?? undefined,
         motivoConsulta: motivo || null,
         observaciones: observaciones || null,
+        bloqueoId: hint?.bloqueoId ?? null,
       })
       setResultado(creada)
     } catch (e) {
@@ -1413,21 +1665,7 @@ function NuevaCitaView({ hint }: { hint: CitaHint | null }) {
         sub="Registre una cita para un paciente existente. La duración depende del tipo de cita."
       />
 
-      {error && (
-        <div className="mb-4">
-          <Aviso msg={error} />
-        </div>
-      )}
-
-      {resultado && (
-        <div className="mb-4">
-          <Exito
-            msg={`Cita creada: #${resultado.id} — ${resultado.paciente.nombresCompletos} · ${formatFechaHora(
-              resultado.fechaHora,
-            )} · ${resultado.tipoCita.nombre} (${resultado.estado})`}
-          />
-        </div>
-      )}
+      {resultado && <ModalExitoCreacion cita={resultado} onOk={() => onFinalizar?.(resultado)} />}
 
       <Seccion titulo="Paciente">
         <label className="block text-sm font-medium" htmlFor="buscar-paciente">
@@ -1435,6 +1673,7 @@ function NuevaCitaView({ hint }: { hint: CitaHint | null }) {
           <input
             id="buscar-paciente"
             type="search"
+            autoFocus
             value={docBusqueda}
             onChange={(e) => setDocBusqueda(e.target.value)}
             placeholder={
@@ -1577,6 +1816,8 @@ function NuevaCitaView({ hint }: { hint: CitaHint | null }) {
       >
         {enviando ? 'Registrando…' : 'Registrar cita'}
       </button>
+
+      {error && <ModalError msg={error} onCerrar={() => setError(null)} />}
     </div>
   )
 }

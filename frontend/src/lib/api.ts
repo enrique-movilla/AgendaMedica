@@ -16,6 +16,7 @@ import type {
   PacienteListaDto,
   ProfesionalResumenDto,
   ResultadoCatalogo,
+  ResultadoReservaBloqueo,
   SedeDto,
   TipoCitaDto,
   TipoIdentificacionDto,
@@ -204,5 +205,16 @@ export const api = {
     request<CitaDto>(`/v1/citas/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
+    }),
+  reservarBloqueo: (payload: { profesionalId: number; fecha: string; horaInicio: string }) =>
+    request<ResultadoReservaBloqueo>('/v1/citas/bloqueos', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  liberarBloqueo: (bloqueoId: string) =>
+    request<void>(`/v1/citas/bloqueos/${bloqueoId}`, { method: 'DELETE' }),
+  renovarBloqueo: (bloqueoId: string) =>
+    request<ResultadoReservaBloqueo>(`/v1/citas/bloqueos/${bloqueoId}`, {
+      method: 'PUT',
     }),
 }

@@ -103,23 +103,27 @@ public class ModificarCitaHandler : IRequestHandler<ModificarCitaCommand, CitaDt
 
             var nuevaFin = request.NuevaFechaHora.Value.AddMinutes(tipoCita.DuracionMinutos);
 
-            var hayTraslape = await _uow.Citas.ExisteTraslapeAsync(
-                cita.ProfesionalId, request.NuevaFechaHora.Value,
-                nuevaFin, citaIdExcluir: cita.Id, ct);
-
-            if (hayTraslape)
-                throw new ConflictoHorarioException(request.NuevaFechaHora.Value, nuevaFin);
-
             cita.Reprogramar(request.NuevaFechaHora.Value,
                 tipoCita.DuracionMinutos, request.Motivo, request.ModificadoPor);
             reprogramada = true;
+
+            // Validación ATOMICA de traslape: advisory lock en BD.
+            var ok = await _uow.Citas.ModificarCitaAtomicoAsync(
+                cita, request.NuevaFechaHora.Value, nuevaFin, ct);
+
+            if (!ok)
+                throw new ConflictoHorarioException(request.NuevaFechaHora.Value, nuevaFin);
         }
 
         if (request.Observaciones is not null)
+        {
             cita.ActualizarObservaciones(request.Observaciones, request.ModificadoPor);
-
-        _uow.Citas.Actualizar(cita);
-        await _uow.GuardarAsync(ct);
+            await _uow.GuardarAsync(ct);
+        }
+        else if (!reprogramada)
+        {
+            await _uow.GuardarAsync(ct);
+        }
 
         if (reprogramada && cita.Paciente is not null)
         {
@@ -313,4 +317,59 @@ public class InactivarDisponibilidadHandler
         await _uow.GuardarAsync(ct);
         return true;
     }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  BLOQUEO PREVENTIVO DE TURNOS (Fase 3)
+// ══════════════════════════════════════════════════════════════
+public record ReservarBloqueoCommand(
+    int    ProfesionalId,
+    DateOnly Fecha,
+    string HoraInicio,
+    string Usuario
+) : IRequest<ResultadoReservaBloqueo>;
+
+public class ReservarBloqueoHandler
+    : IRequestHandler<ReservarBloqueoCommand, ResultadoReservaBloqueo>
+{
+    private readonly IBloqueoTurnoServicio _bloqueos;
+    public ReservarBloqueoHandler(IBloqueoTurnoServicio bloqueos) => _bloqueos = bloqueos;
+
+    public Task<ResultadoReservaBloqueo> Handle(
+        ReservarBloqueoCommand request, CancellationToken ct)
+        => _bloqueos.ReservarAsync(
+            request.ProfesionalId, request.Fecha, request.HoraInicio,
+            request.Usuario, ct);
+}
+
+public record RenovarBloqueoCommand(string BloqueoId)
+    : IRequest<ResultadoReservaBloqueo>;
+
+public class RenovarBloqueoHandler
+    : IRequestHandler<RenovarBloqueoCommand, ResultadoReservaBloqueo>
+{
+    private readonly IBloqueoTurnoServicio _bloqueos;
+    public RenovarBloqueoHandler(IBloqueoTurnoServicio bloqueos) => _bloqueos = bloqueos;
+
+    public Task<ResultadoReservaBloqueo> Handle(
+        RenovarBloqueoCommand request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.BloqueoId))
+            throw new EntidadNoEncontradaException("Bloqueo de turno", string.Empty);
+
+        return _bloqueos.RenovarAsync(request.BloqueoId, ct);
+    }
+}
+
+public record LiberarBloqueoCommand(string BloqueoId) : IRequest<bool>;
+
+public class LiberarBloqueoHandler
+    : IRequestHandler<LiberarBloqueoCommand, bool>
+{
+    private readonly IBloqueoTurnoServicio _bloqueos;
+    public LiberarBloqueoHandler(IBloqueoTurnoServicio bloqueos) => _bloqueos = bloqueos;
+
+    public Task<bool> Handle(
+        LiberarBloqueoCommand request, CancellationToken ct)
+        => _bloqueos.LiberarAsync(request.BloqueoId, ct);
 }

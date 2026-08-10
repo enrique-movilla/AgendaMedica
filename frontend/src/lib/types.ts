@@ -193,6 +193,15 @@ export interface CrearCitaRequest {
   tipoUsuarioId?: number | null
   motivoConsulta?: string | null
   observaciones?: string | null
+  bloqueoId?: string | null
+}
+
+export interface ResultadoReservaBloqueo {
+  exitoso: boolean
+  bloqueoId?: string | null
+  token?: string | null
+  expiraEn?: string | null
+  motivoRechazo?: string | null
 }
 
 export interface CrearPacienteRequest {
