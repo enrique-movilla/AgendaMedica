@@ -26,13 +26,14 @@ import type {
   TipoUsuarioDto,
 } from './lib/types'
 
-type Vista = 'agenda' | 'nueva-cita' | 'pacientes' | 'profesionales' | 'catalogos'
+type Vista = 'agenda' | 'nueva-cita' | 'pacientes' | 'profesionales' | 'disponibilidad' | 'catalogos'
 
 const NAV: { id: Vista; label: string }[] = [
   { id: 'agenda', label: 'Agenda del día' },
   { id: 'nueva-cita', label: 'Nueva cita' },
   { id: 'pacientes', label: 'Pacientes' },
   { id: 'profesionales', label: 'Profesionales' },
+  { id: 'disponibilidad', label: 'Gestión de disponibilidad' },
   { id: 'catalogos', label: 'Catálogos' },
 ]
 
@@ -293,6 +294,7 @@ function useCatalogos() {
 }
 
 export default function App() {
+  const catalogo = useCatalogos()
   const [vista, setVista] = useState<Vista>('agenda')
   const [configAbierta, setConfigAbierta] = useState(false)
   const [citaHint, setCitaHint] = useState<CitaHint | null>(null)
@@ -425,6 +427,14 @@ export default function App() {
           )}
           {vista === 'pacientes' && <PacientesView />}
           {vista === 'profesionales' && <ProfesionalesView />}
+          {vista === 'disponibilidad' && (
+            <DisponibilidadView
+              profesionales={catalogo.profesionales}
+              profesionalInicial={catalogo.profesionales[0] ?? null}
+              onVolver={() => {}}
+              showVolver={false}
+            />
+          )}
           {vista === 'catalogos' && <CatalogosView />}
         </main>
       </div>
@@ -2933,10 +2943,12 @@ function DisponibilidadView({
   profesionales,
   profesionalInicial,
   onVolver,
+  showVolver = true,
 }: {
   profesionales: ProfesionalResumenDto[]
   profesionalInicial: ProfesionalResumenDto | null
   onVolver: () => void
+  showVolver?: boolean
 }) {
   const catalogo = useCatalogos()
   const [profId, setProfId] = useState(
@@ -2969,9 +2981,13 @@ function DisponibilidadView({
   }
 
   useEffect(() => {
+    if (!profId && profesionales.length > 0) {
+      setProfId(profesionalInicial?.id ?? profesionales[0].id)
+      return
+    }
     recargar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profId])
+  }, [profId, profesionales, profesionalInicial])
 
   async function inactivar(p: DisponibilidadProfesionalDto) {
     if (!confirm(`¿Desea inactivar el horario del ${p.nombreDia} (${p.horaInicio}–${p.horaFin})?`)) {
@@ -2993,13 +3009,15 @@ function DisponibilidadView({
           titulo="Horarios de disponibilidad"
           sub="Defina en qué días y franjas horarias atiende cada profesional. Los slots libres de la agenda se calculan a partir de estas plantillas."
         />
-        <button
-          type="button"
-          onClick={onVolver}
-          className="mt-1 shrink-0 rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground/70 transition-colors hover:bg-muted"
-        >
-          ← Volver a profesionales
-        </button>
+        {showVolver && (
+          <button
+            type="button"
+            onClick={onVolver}
+            className="mt-1 shrink-0 rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground/70 transition-colors hover:bg-muted"
+          >
+            ← Volver a profesionales
+          </button>
+        )}
       </div>
 
       {error && (
@@ -3029,6 +3047,7 @@ function DisponibilidadView({
             {profesionales.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombresCompletos}
+                {p.especialidad ? ` — ${p.especialidad}` : ''}
               </option>
             ))}
           </select>
