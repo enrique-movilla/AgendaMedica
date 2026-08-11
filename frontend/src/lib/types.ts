@@ -94,6 +94,14 @@ export interface ProfesionalResumenDto {
   especialidad: string
   sede: string
   consultorioSala: string | null
+  especialidadId: number
+  sedeId: number
+  tipoIdentificacion: string
+  numeroIdentificacion: string
+  celular: string | null
+  email: string | null
+  registroMedico: string | null
+  activo: boolean
 }
 
 export interface TipoCitaDto {
@@ -226,6 +234,62 @@ export interface ActualizarPacienteRequest {
   aseguradoraId?: number | null
   tipoUsuarioId?: number | null
   empresa?: string | null
+}
+
+export interface CrearProfesionalRequest {
+  tipoIdentificacionId: number
+  numeroIdentificacion: string
+  nombresCompletos: string
+  especialidadId: number
+  sedeId: number
+  celular?: string | null
+  email?: string | null
+  consultorioSala?: string | null
+  registroMedico?: string | null
+}
+
+export interface ActualizarProfesionalRequest {
+  nombresCompletos?: string | null
+  especialidadId?: number | null
+  sedeId?: number | null
+  celular?: string | null
+  email?: string | null
+  consultorioSala?: string | null
+  registroMedico?: string | null
+}
+
+export interface DisponibilidadProfesionalDto {
+  id: number
+  profesionalId: number
+  nombreProfesional: string
+  diaSemana: number
+  nombreDia: string
+  horaInicio: string
+  horaFin: string
+  duracionMinutos: number
+  sedeId: number | null
+  sede: string | null
+  consultorioSala: string | null
+  activo: boolean
+}
+
+export interface CrearDisponibilidadRequest {
+  profesionalId: number
+  diaSemana: number
+  horaInicio: string
+  horaFin: string
+  duracionMinutos: number
+  sedeId?: number | null
+  consultorioSala?: string | null
+}
+
+export interface ActualizarDisponibilidadRequest {
+  diaSemana: number
+  horaInicio: string
+  horaFin: string
+  duracionMinutos: number
+  sedeId?: number | null
+  consultorioSala?: string | null
 }
 
 export interface HistorialEstadoDto {

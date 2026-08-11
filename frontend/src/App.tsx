@@ -4,12 +4,15 @@ import { useConfigBusqueda } from './lib/configBusqueda'
 import BuscadorAseguradora from './components/BuscadorAseguradora'
 import VentanaConfigBusqueda from './components/VentanaConfigBusqueda'
 import type {
+  ActualizarDisponibilidadRequest,
   AgendaDiaItemDto,
   AseguradoraDto,
   CatalogoDefinicion,
   CatalogoFila,
   CitaDto,
+  CrearProfesionalRequest,
   DependenciaCatalogo,
+  DisponibilidadProfesionalDto,
   EspecialidadDto,
   HistorialEstadoDto,
   PacienteDto,
@@ -23,12 +26,13 @@ import type {
   TipoUsuarioDto,
 } from './lib/types'
 
-type Vista = 'agenda' | 'nueva-cita' | 'pacientes' | 'catalogos'
+type Vista = 'agenda' | 'nueva-cita' | 'pacientes' | 'profesionales' | 'catalogos'
 
 const NAV: { id: Vista; label: string }[] = [
   { id: 'agenda', label: 'Agenda del día' },
   { id: 'nueva-cita', label: 'Nueva cita' },
   { id: 'pacientes', label: 'Pacientes' },
+  { id: 'profesionales', label: 'Profesionales' },
   { id: 'catalogos', label: 'Catálogos' },
 ]
 
@@ -308,6 +312,20 @@ export default function App() {
     setVista(v)
   }
 
+  // Abandonar la creación sin guardar: libera la reserva y vuelve a la agenda
+  // del día/profesional desde el que se abrió el formulario.
+  function abandonarNuevaCita() {
+    const h = citaHint
+    if (h?.fechaHora) {
+      setAgendaEnfoque({
+        fecha: h.fechaHora.slice(0, 10),
+        profesionalesIds: h.profesionalId ? [h.profesionalId] : [],
+      })
+    }
+    setCitaHint(null)
+    navegar('agenda')
+  }
+
   // Al confirmar la cita creada (modal OK): volver a la agenda del día y
   // profesional de la cita, y limpiar el hint/reserva.
   function finalizarNuevaCita(cita: CitaDto) {
@@ -399,9 +417,14 @@ export default function App() {
             />
           )}
           {vista === 'nueva-cita' && (
-            <NuevaCitaView hint={citaHint} onFinalizar={finalizarNuevaCita} />
+            <NuevaCitaView
+              hint={citaHint}
+              onFinalizar={finalizarNuevaCita}
+              onAbandonar={abandonarNuevaCita}
+            />
           )}
           {vista === 'pacientes' && <PacientesView />}
+          {vista === 'profesionales' && <ProfesionalesView />}
           {vista === 'catalogos' && <CatalogosView />}
         </main>
       </div>
@@ -801,8 +824,9 @@ function AgendaView({
 
 const HORA_INICIO = 6 * 60 // 06:00
 const HORA_FIN = 21 * 60 // 21:00
-const PX_POR_HORA = 56 // px por hora en la escala
+const PX_POR_HORA = 72 // px por hora en la escala (más ancho = slots más clicables)
 const ANCHO_COL = 180 // columna izquierda (profesional)
+const ANCHO_ESCALA = ((HORA_FIN - HORA_INICIO) / 60) * PX_POR_HORA
 const pxHora = (min: number) => ((min - HORA_INICIO) / 60) * PX_POR_HORA
 const horasEje = Array.from(
   { length: (HORA_FIN - HORA_INICIO) / 60 + 1 },
@@ -835,7 +859,6 @@ function TimelineDia({
   onCrearCita?: (hint: CitaHint) => void
   onReprogramar?: (citaId: number, fechaHoraNueva: string) => void | Promise<void>
 }) {
-  const rango = HORA_FIN - HORA_INICIO
   const todas = filas.flatMap((f) => f.items)
 
   // Estados desde los que se permite arrastrar (transición válida a Reprogramada).
@@ -853,7 +876,7 @@ function TimelineDia({
         <div className="min-w-max">
           <div
             className="relative border-b border-border bg-muted"
-            style={{ height: 44, marginLeft: ANCHO_COL }}
+            style={{ height: 44, marginLeft: ANCHO_COL, width: ANCHO_ESCALA }}
           >
             <span
               className="absolute top-1/2 w-12 -translate-y-1/2 text-xs font-medium text-foreground/60"
@@ -887,7 +910,7 @@ function TimelineDia({
                 <p className="truncate text-sm font-semibold">{f.profesional.nombresCompletos}</p>
                 <p className="truncate text-xs text-foreground/60">{f.profesional.especialidad}</p>
               </div>
-              <div className="relative" style={{ marginLeft: ANCHO_COL, height: 76 }}>
+              <div className="relative" style={{ marginLeft: ANCHO_COL, height: 76, width: ANCHO_ESCALA }}>
                 {horasEje.map((h) => (
                   <span
                     key={h}
@@ -902,8 +925,8 @@ function TimelineDia({
                   .map((s, idx) => {
                     const inicio = aMinutos(s.horaInicio)
                     const fin = aMinutos(s.horaFin) || inicio
-                    const left = ((inicio - HORA_INICIO) / rango) * 100
-                    const width = ((fin - inicio) / rango) * 100
+                    const left = pxHora(inicio)
+                    const ancho = Math.max(16, pxHora(fin) - pxHora(inicio))
                     return (
                       <button
                         key={`slot-${idx}`}
@@ -924,15 +947,10 @@ function TimelineDia({
                           setArrastrando(null)
                         }}
                         title={`Libre ${s.horaInicio}–${s.horaFin} · hacer clic para agendar${arrastrando ? ' · soltar para reprogramar' : ''}`}
-                        className="absolute top-1.5 flex items-center justify-center rounded-md border border-dashed border-emerald-300 bg-emerald-50/70 text-center text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
-                        style={{
-                          left: `${left}%`,
-                          width: `${width}%`,
-                          minWidth: 26,
-                          height: 64,
-                        }}
+                        className="absolute top-1.5 flex items-center justify-center overflow-hidden rounded-md border border-dashed border-emerald-300 bg-emerald-50/70 text-center text-[10px] font-medium text-emerald-700 transition-colors hover:border-emerald-500 hover:bg-emerald-100"
+                        style={{ left, width: ancho, minWidth: 16, height: 64 }}
                       >
-                        +
+                        <span className="truncate">{ancho >= 34 ? s.horaInicio : '+'}</span>
                       </button>
                     )
                   })}
@@ -941,10 +959,14 @@ function TimelineDia({
                 {f.items.map((i) => {
                   const inicio = aMinutos(i.horaInicio)
                   const fin = aMinutos(i.horaFin) || inicio
-                  const left = ((inicio - HORA_INICIO) / rango) * 100
-                  const width = ((fin - inicio) / rango) * 100
+                  const left = pxHora(inicio)
+                  const ancho = Math.max(20, pxHora(fin) - pxHora(inicio))
                   return (
-                    <div key={i.citaId} className="absolute" style={{ left: `${left}%`, width: `${width}%`, minWidth: 70, top: 4 }}>
+                    <div
+                      key={i.citaId}
+                      className="absolute"
+                      style={{ left, width: ancho, minWidth: 20, top: 4 }}
+                    >
                       <MenuTresPuntos onDetalle={() => onSeleccionar(i)} />
                       <button
                         type="button"
@@ -1592,9 +1614,11 @@ function FilaDetalle({ k, v }: { k: string; v: string }) {
 function NuevaCitaView({
   hint,
   onFinalizar,
+  onAbandonar,
 }: {
   hint: CitaHint | null
   onFinalizar?: (cita: CitaDto) => void
+  onAbandonar?: () => void
 }) {
   const catalogo = useCatalogos()
   const configBusqueda = useConfigBusqueda()
@@ -1808,14 +1832,24 @@ function NuevaCitaView({
         </label>
       </Seccion>
 
-      <button
-        type="button"
-        onClick={enviar}
-        disabled={enviando}
-        className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {enviando ? 'Registrando…' : 'Registrar cita'}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={enviar}
+          disabled={enviando}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {enviando ? 'Registrando…' : 'Registrar cita'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onAbandonar?.()}
+          disabled={enviando}
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-white px-5 py-2.5 text-sm font-semibold text-foreground/70 transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Cancelar y volver
+        </button>
+      </div>
 
       {error && <ModalError msg={error} onCerrar={() => setError(null)} />}
     </div>
@@ -2370,6 +2404,899 @@ function FormPaciente({
           className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {guardando ? 'Guardando…' : esEdicion ? 'Guardar cambios' : 'Registrar paciente'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          disabled={guardando}
+          className="rounded-md border border-border px-5 py-2.5 text-sm font-semibold text-foreground/70 transition-colors hover:bg-muted disabled:opacity-40"
+        >
+          Cancelar
+        </button>
+      </div>
+    </Seccion>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PROFESIONALES / MÉDICOS
+// ══════════════════════════════════════════════════════════════
+type ModoFormProfesional = 'crear' | 'editar' | null
+
+function ProfesionalesView() {
+  const catalogo = useCatalogos()
+  const [items, setItems] = useState<ProfesionalResumenDto[] | null>(null)
+  const [termino, setTermino] = useState('')
+  const [filtroEspecialidad, setFiltroEspecialidad] = useState('')
+  const [filtroSede, setFiltroSede] = useState('')
+  const [soloActivos, setSoloActivos] = useState(true)
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [exito, setExito] = useState<string | null>(null)
+
+  const [modo, setModo] = useState<ModoFormProfesional>(null)
+  const [editarProfesional, setEditarProfesional] = useState<ProfesionalResumenDto | null>(null)
+  const [guardando, setGuardando] = useState(false)
+  const [horarioDe, setHorarioDe] = useState<ProfesionalResumenDto | null>(null)
+
+  const recargar = () => {
+    setCargando(true)
+    setError(null)
+    api
+      .profesionales()
+      .then(setItems)
+      .catch((e) => setError(msgError(e)))
+      .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    recargar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const filtrados = (items ?? []).filter((p) => {
+    if (soloActivos && !p.activo) return false
+    if (filtroEspecialidad && p.especialidadId !== Number(filtroEspecialidad)) return false
+    if (filtroSede && p.sedeId !== Number(filtroSede)) return false
+    if (termino.trim() && !p.nombresCompletos.toLowerCase().includes(termino.trim().toLowerCase()))
+      return false
+    return true
+  })
+
+  async function inactivar(p: ProfesionalResumenDto) {
+    if (
+      !confirm(`¿Desea inactivar al profesional ${p.nombresCompletos}? No aparecerá en los resultados activos.`)
+    ) {
+      return
+    }
+    try {
+      await api.inactivarProfesional(p.id)
+      setExito(`Profesional ${p.nombresCompletos} inactivado.`)
+      recargar()
+    } catch (e) {
+      setError(msgError(e))
+    }
+  }
+
+  if (horarioDe) {
+    return (
+      <DisponibilidadView
+        profesionales={items ?? []}
+        profesionalInicial={horarioDe}
+        onVolver={() => setHorarioDe(null)}
+      />
+    )
+  }
+
+  return (
+    <div>
+      <Cabecera
+        titulo="Profesionales"
+        sub="Responsables de atención: médicos y demás profesionales que atienden citas."
+      />
+
+      {error && (
+        <div className="mb-4">
+          <Aviso msg={error} />
+        </div>
+      )}
+      {exito && (
+        <div className="mb-4">
+          <Exito msg={exito} />
+        </div>
+      )}
+
+      <div className="mb-5 rounded-xl border border-border bg-white p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="block text-sm font-medium" htmlFor="pf-termino">
+            Nombre
+            <input
+              id="pf-termino"
+              type="search"
+              value={termino}
+              onChange={(e) => setTermino(e.target.value)}
+              placeholder="Buscar por nombre…"
+              className={inputCls}
+            />
+          </label>
+          <label className="block text-sm font-medium" htmlFor="pf-especialidad">
+            Especialidad
+            <select
+              id="pf-especialidad"
+              value={filtroEspecialidad}
+              onChange={(e) => setFiltroEspecialidad(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">Todas</option>
+              {catalogo.especialidades.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-medium" htmlFor="pf-sede">
+            Sede
+            <select
+              id="pf-sede"
+              value={filtroSede}
+              onChange={(e) => setFiltroSede(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">Todas</option>
+              {catalogo.sedes.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-end gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={soloActivos}
+              onChange={(e) => setSoloActivos(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+            Solo activos
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setModo('crear')}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
+          >
+            Nuevo profesional
+          </button>
+        </div>
+      </div>
+
+      {(modo === 'crear' || modo === 'editar') && (
+        <FormProfesional
+          catalogo={catalogo}
+          profesional={modo === 'editar' ? editarProfesional : null}
+          guardando={guardando}
+          onCancelar={() => {
+            setModo(null)
+            setEditarProfesional(null)
+          }}
+          onGuardar={async (payload) => {
+            setGuardando(true)
+            setError(null)
+            try {
+              if (modo === 'crear') {
+                await api.crearProfesional(payload)
+                setExito('Profesional creado correctamente.')
+              } else if (editarProfesional) {
+                await api.actualizarProfesional(editarProfesional.id, payload)
+                setExito('Profesional actualizado correctamente.')
+              }
+              setModo(null)
+              setEditarProfesional(null)
+              recargar()
+            } catch (e) {
+              setError(msgError(e))
+            } finally {
+              setGuardando(false)
+            }
+          }}
+        />
+      )}
+
+      {cargando && <Spinner />}
+
+      {!cargando && items && filtrados.length === 0 && (
+        <div className="rounded-lg border border-border bg-white p-10 text-center text-sm text-foreground/60">
+          No se encontraron profesionales con los criterios indicados.
+        </div>
+      )}
+
+      {!cargando && items && filtrados.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-border bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-foreground/60">
+                  <th className="px-4 py-3">Identificación</th>
+                  <th className="px-4 py-3">Número</th>
+                  <th className="px-4 py-3">Nombres completos</th>
+                  <th className="px-4 py-3">Especialidad</th>
+                  <th className="px-4 py-3">Sede</th>
+                  <th className="px-4 py-3">Consultorio</th>
+                  <th className="px-4 py-3">Registro médico</th>
+                  <th className="px-4 py-3">Contacto</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrados.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="border-t border-border first:border-t-0 hover:bg-muted/40"
+                  >
+                    <td className="px-4 py-3">{p.tipoIdentificacion || '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{p.numeroIdentificacion}</td>
+                    <td className="px-4 py-3 font-medium">{p.nombresCompletos}</td>
+                    <td className="px-4 py-3">{p.especialidad}</td>
+                    <td className="px-4 py-3">{p.sede}</td>
+                    <td className="px-4 py-3">{p.consultorioSala ?? '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{p.registroMedico ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      {p.celular || p.email ? (
+                        <div className="text-xs text-foreground/60">
+                          {p.celular && <div>{p.celular}</div>}
+                          {p.email && <div>{p.email}</div>}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                          p.activo
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : 'bg-slate-100 text-slate-600 border-slate-300'
+                        }`}
+                      >
+                        {p.activo ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <button
+                        type="button"
+                        disabled={modo !== null}
+                        onClick={() => setHorarioDe(p)}
+                        className="mr-2 rounded-md border border-primary px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-40"
+                      >
+                        Horario
+                      </button>
+                      <button
+                        type="button"
+                        disabled={modo !== null}
+                        onClick={() => {
+                          setEditarProfesional(p)
+                          setModo('editar')
+                        }}
+                        className="mr-2 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-foreground/80 transition-colors hover:bg-muted disabled:opacity-40"
+                      >
+                        Editar
+                      </button>
+                      {p.activo && (
+                        <button
+                          type="button"
+                          onClick={() => inactivar(p)}
+                          className="rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50"
+                        >
+                          Inactivar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-border px-4 py-3 text-sm text-foreground/60">
+            {filtrados.length} profesional{filtrados.length !== 1 ? 'es' : ''}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormProfesional({
+  catalogo,
+  profesional,
+  guardando,
+  onCancelar,
+  onGuardar,
+}: {
+  catalogo: ReturnType<typeof useCatalogos>
+  profesional: ProfesionalResumenDto | null
+  guardando: boolean
+  onCancelar: () => void
+  onGuardar: (payload: CrearProfesionalRequest) => Promise<void>
+}) {
+  const esEdicion = profesional !== null
+  const [tipoDoc, setTipoDoc] = useState(
+    String(
+      catalogo.tiposId.find((t) => t.nombre === profesional?.tipoIdentificacion)?.id ??
+        catalogo.tiposId[0]?.id ??
+        1,
+    ),
+  )
+  const [numDoc, setNumDoc] = useState(profesional?.numeroIdentificacion ?? '')
+  const [nombres, setNombres] = useState(profesional?.nombresCompletos ?? '')
+  const [especialidadId, setEspecialidadId] = useState(
+    String(profesional?.especialidadId ?? catalogo.especialidades[0]?.id ?? ''),
+  )
+  const [sedeId, setSedeId] = useState(
+    String(profesional?.sedeId ?? catalogo.sedes[0]?.id ?? ''),
+  )
+  const [celular, setCelular] = useState(profesional?.celular ?? '')
+  const [email, setEmail] = useState(profesional?.email ?? '')
+  const [consultorio, setConsultorio] = useState(profesional?.consultorioSala ?? '')
+  const [registro, setRegistro] = useState(profesional?.registroMedico ?? '')
+  const [errors, setErrors] = useState<string[]>([])
+
+  function validarYEnviar() {
+    const e: string[] = []
+    if (!nombres.trim()) e.push('Los nombres completos son obligatorios.')
+    if (!especialidadId) e.push('La especialidad es obligatoria.')
+    if (!sedeId) e.push('La sede es obligatoria.')
+    if (!esEdicion && !numDoc.trim())
+      e.push('El número de identificación es obligatorio.')
+    setErrors(e)
+    if (e.length > 0) return
+
+    onGuardar({
+      tipoIdentificacionId: Number(tipoDoc),
+      numeroIdentificacion: numDoc.trim(),
+      nombresCompletos: nombres.trim(),
+      especialidadId: Number(especialidadId),
+      sedeId: Number(sedeId),
+      celular: celular || null,
+      email: email || null,
+      consultorioSala: consultorio || null,
+      registroMedico: registro || null,
+    })
+  }
+
+  return (
+    <Seccion titulo={esEdicion ? 'Editar profesional' : 'Nuevo profesional'}>
+      {errors.length > 0 && (
+        <ul className="mb-4 space-y-1 rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errors.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm font-medium" htmlFor="pf-tipo-doc">
+          Tipo de identificación
+          <select
+            id="pf-tipo-doc"
+            value={tipoDoc}
+            onChange={(e) => setTipoDoc(e.target.value)}
+            disabled={esEdicion}
+            className={inputCls}
+          >
+            {catalogo.tiposId.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium" htmlFor="pf-documento">
+          Número de identificación
+          <input
+            id="pf-documento"
+            type="text"
+            value={numDoc}
+            onChange={(e) => setNumDoc(e.target.value)}
+            disabled={esEdicion}
+            className={inputCls}
+          />
+        </label>
+        <div className="sm:col-span-2">
+          <label className="block text-sm font-medium" htmlFor="pf-nombres">
+            Nombres completos
+            <input
+              id="pf-nombres"
+              type="text"
+              value={nombres}
+              onChange={(e) => setNombres(e.target.value)}
+              className={inputCls}
+            />
+          </label>
+        </div>
+        <label className="block text-sm font-medium" htmlFor="pf-especialidad">
+          Especialidad
+          <select
+            id="pf-especialidad"
+            value={especialidadId}
+            onChange={(e) => setEspecialidadId(e.target.value)}
+            className={inputCls}
+          >
+            {catalogo.especialidades.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium" htmlFor="pf-sede">
+          Sede
+          <select
+            id="pf-sede"
+            value={sedeId}
+            onChange={(e) => setSedeId(e.target.value)}
+            className={inputCls}
+          >
+            {catalogo.sedes.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium" htmlFor="pf-consultorio">
+          Consultorio / Sala
+          <input
+            id="pf-consultorio"
+            type="text"
+            value={consultorio}
+            onChange={(e) => setConsultorio(e.target.value)}
+            placeholder="Ej. Consultorio 101"
+            className={inputCls}
+          />
+        </label>
+        <label className="block text-sm font-medium" htmlFor="pf-registro">
+          Registro médico
+          <input
+            id="pf-registro"
+            type="text"
+            value={registro}
+            onChange={(e) => setRegistro(e.target.value)}
+            placeholder="Número de tarjeta profesional"
+            className={inputCls}
+          />
+        </label>
+      </div>
+
+      <h3 className="mb-3 mt-6 border-t border-border pt-4 text-sm font-semibold">Contacto</h3>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm font-medium" htmlFor="pf-celular">
+          Celular
+          <input
+            id="pf-celular"
+            type="tel"
+            value={celular}
+            onChange={(e) => setCelular(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className="block text-sm font-medium" htmlFor="pf-email">
+          Correo electrónico
+          <input
+            id="pf-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={validarYEnviar}
+          disabled={guardando}
+          className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {guardando ? 'Guardando…' : esEdicion ? 'Guardar cambios' : 'Registrar profesional'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          disabled={guardando}
+          className="rounded-md border border-border px-5 py-2.5 text-sm font-semibold text-foreground/70 transition-colors hover:bg-muted disabled:opacity-40"
+        >
+          Cancelar
+        </button>
+      </div>
+    </Seccion>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HORARIOS DE DISPONIBILIDAD (plantillas semanales por médico)
+// ══════════════════════════════════════════════════════════════
+const DIAS_SEMANA = [
+  { id: 1, nombre: 'Lunes' },
+  { id: 2, nombre: 'Martes' },
+  { id: 3, nombre: 'Miércoles' },
+  { id: 4, nombre: 'Jueves' },
+  { id: 5, nombre: 'Viernes' },
+  { id: 6, nombre: 'Sábado' },
+  { id: 7, nombre: 'Domingo' },
+]
+
+function DisponibilidadView({
+  profesionales,
+  profesionalInicial,
+  onVolver,
+}: {
+  profesionales: ProfesionalResumenDto[]
+  profesionalInicial: ProfesionalResumenDto | null
+  onVolver: () => void
+}) {
+  const catalogo = useCatalogos()
+  const [profId, setProfId] = useState(
+    profesionalInicial?.id ?? profesionales[0]?.id ?? 0,
+  )
+  const [plantillas, setPlantillas] = useState<DisponibilidadProfesionalDto[] | null>(null)
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [exito, setExito] = useState<string | null>(null)
+  const [modo, setModo] = useState<'crear' | 'editar' | null>(null)
+  const [editarPlantilla, setEditarPlantilla] =
+    useState<DisponibilidadProfesionalDto | null>(null)
+  const [guardando, setGuardando] = useState(false)
+
+  const profActual = profesionales.find((p) => p.id === profId)
+
+  const recargar = () => {
+    if (!profId) {
+      setPlantillas([])
+      setCargando(false)
+      return
+    }
+    setCargando(true)
+    setError(null)
+    api
+      .plantillasDisponibilidad(profId)
+      .then(setPlantillas)
+      .catch((e) => setError(msgError(e)))
+      .finally(() => setCargando(false))
+  }
+
+  useEffect(() => {
+    recargar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profId])
+
+  async function inactivar(p: DisponibilidadProfesionalDto) {
+    if (!confirm(`¿Desea inactivar el horario del ${p.nombreDia} (${p.horaInicio}–${p.horaFin})?`)) {
+      return
+    }
+    try {
+      await api.inactivarDisponibilidad(p.id)
+      setExito(`Horario del ${p.nombreDia} inactivado.`)
+      recargar()
+    } catch (e) {
+      setError(msgError(e))
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-3">
+        <Cabecera
+          titulo="Horarios de disponibilidad"
+          sub="Defina en qué días y franjas horarias atiende cada profesional. Los slots libres de la agenda se calculan a partir de estas plantillas."
+        />
+        <button
+          type="button"
+          onClick={onVolver}
+          className="mt-1 shrink-0 rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground/70 transition-colors hover:bg-muted"
+        >
+          ← Volver a profesionales
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4">
+          <Aviso msg={error} />
+        </div>
+      )}
+      {exito && (
+        <div className="mb-4">
+          <Exito msg={exito} />
+        </div>
+      )}
+
+      <div className="mb-5 rounded-xl border border-border bg-white p-4">
+        <label className="block max-w-sm text-sm font-medium" htmlFor="disp-prof">
+          Profesional
+          <select
+            id="disp-prof"
+            value={profId}
+            onChange={(e) => {
+              setProfId(Number(e.target.value))
+              setModo(null)
+              setEditarPlantilla(null)
+            }}
+            className={inputCls}
+          >
+            {profesionales.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombresCompletos}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={modo !== null || !profId}
+            onClick={() => {
+              setEditarPlantilla(null)
+              setModo('crear')
+            }}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Nueva plantilla
+          </button>
+        </div>
+      </div>
+
+      {modo && profId > 0 && (
+        <FormDisponibilidad
+          key={`${modo}-${editarPlantilla?.id ?? 'nuevo'}`}
+          plantilla={editarPlantilla}
+          sedes={catalogo.sedes}
+          consultorioDefault={profActual?.consultorioSala ?? ''}
+          guardando={guardando}
+          onCancelar={() => {
+            setModo(null)
+            setEditarPlantilla(null)
+          }}
+          onGuardar={async (payload) => {
+            setGuardando(true)
+            setError(null)
+            try {
+              if (modo === 'crear') {
+                await api.crearDisponibilidad({ ...payload, profesionalId: profId })
+                setExito('Plantilla creada correctamente.')
+              } else if (editarPlantilla) {
+                await api.actualizarDisponibilidad(editarPlantilla.id, payload)
+                setExito('Plantilla actualizada correctamente.')
+              }
+              setModo(null)
+              setEditarPlantilla(null)
+              recargar()
+            } catch (e) {
+              setError(msgError(e))
+            } finally {
+              setGuardando(false)
+            }
+          }}
+        />
+      )}
+
+      {cargando && <Spinner />}
+
+      {!cargando && plantillas && plantillas.length === 0 && (
+        <div className="rounded-lg border border-border bg-white p-10 text-center text-sm text-foreground/60">
+          {profId
+            ? 'Este profesional no tiene horarios configurados. Cree una plantilla para generar slots disponibles.'
+            : 'Seleccione un profesional para ver sus horarios.'}
+        </div>
+      )}
+
+      {!cargando && plantillas && plantillas.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-border bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-foreground/60">
+                  <th className="px-4 py-3">Día</th>
+                  <th className="px-4 py-3">Desde</th>
+                  <th className="px-4 py-3">Hasta</th>
+                  <th className="px-4 py-3">Duración turno</th>
+                  <th className="px-4 py-3">Sede</th>
+                  <th className="px-4 py-3">Consultorio</th>
+                  <th className="px-4 py-3">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plantillas.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="border-t border-border first:border-t-0 hover:bg-muted/40"
+                  >
+                    <td className="px-4 py-3 font-medium">{p.nombreDia}</td>
+                    <td className="px-4 py-3">{p.horaInicio}</td>
+                    <td className="px-4 py-3">{p.horaFin}</td>
+                    <td className="px-4 py-3">{p.duracionMinutos} min</td>
+                    <td className="px-4 py-3">{p.sede ?? '—'}</td>
+                    <td className="px-4 py-3">{p.consultorioSala ?? '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <button
+                        type="button"
+                        disabled={modo !== null}
+                        onClick={() => {
+                          setEditarPlantilla(p)
+                          setModo('editar')
+                        }}
+                        className="mr-2 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-foreground/80 transition-colors hover:bg-muted disabled:opacity-40"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => inactivar(p)}
+                        className="rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50"
+                      >
+                        Inactivar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-border px-4 py-3 text-sm text-foreground/60">
+            {plantillas.length} plantilla{plantillas.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormDisponibilidad({
+  plantilla,
+  sedes,
+  consultorioDefault,
+  guardando,
+  onCancelar,
+  onGuardar,
+}: {
+  plantilla: DisponibilidadProfesionalDto | null
+  sedes: SedeDto[]
+  consultorioDefault: string
+  guardando: boolean
+  onCancelar: () => void
+  onGuardar: (payload: ActualizarDisponibilidadRequest) => Promise<void>
+}) {
+  const esEdicion = plantilla !== null
+  const [dia, setDia] = useState(String(plantilla?.diaSemana ?? 1))
+  const [hInicio, setHInicio] = useState(plantilla?.horaInicio ?? '08:00')
+  const [hFin, setHFin] = useState(plantilla?.horaFin ?? '12:00')
+  const [dur, setDur] = useState(String(plantilla?.duracionMinutos ?? 30))
+  const [sede, setSede] = useState(plantilla?.sedeId ? String(plantilla.sedeId) : '')
+  const [consultorio, setConsultorio] = useState(
+    plantilla?.consultorioSala ?? consultorioDefault,
+  )
+  const [errors, setErrors] = useState<string[]>([])
+
+  function validarYEnviar() {
+    const e: string[] = []
+    if (!hInicio || !hFin) {
+      e.push('Debe indicar hora de inicio y fin.')
+    } else if (hFin <= hInicio) {
+      e.push('La hora de fin debe ser posterior a la hora de inicio.')
+    }
+    setErrors(e)
+    if (e.length > 0) return
+
+    onGuardar({
+      diaSemana: Number(dia),
+      horaInicio: hInicio,
+      horaFin: hFin,
+      duracionMinutos: Number(dur),
+      sedeId: sede ? Number(sede) : null,
+      consultorioSala: consultorio.trim() || null,
+    })
+  }
+
+  return (
+    <Seccion titulo={esEdicion ? 'Editar horario' : 'Nuevo horario'}>
+      {errors.length > 0 && (
+        <ul className="mb-4 space-y-1 rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errors.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="block text-sm font-medium" htmlFor="disp-dia">
+          Día de la semana
+          <select
+            id="disp-dia"
+            value={dia}
+            onChange={(e) => setDia(e.target.value)}
+            className={inputCls}
+          >
+            {DIAS_SEMANA.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium" htmlFor="disp-inicio">
+          Hora de inicio
+          <input
+            id="disp-inicio"
+            type="time"
+            value={hInicio}
+            onChange={(e) => setHInicio(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className="block text-sm font-medium" htmlFor="disp-fin">
+          Hora de fin
+          <input
+            id="disp-fin"
+            type="time"
+            value={hFin}
+            onChange={(e) => setHFin(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className="block text-sm font-medium" htmlFor="disp-duracion">
+          Duración turno
+          <select
+            id="disp-duracion"
+            value={dur}
+            onChange={(e) => setDur(e.target.value)}
+            className={inputCls}
+          >
+            {[15, 20, 30, 45, 60].map((m) => (
+              <option key={m} value={m}>
+                {m} minutos
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium" htmlFor="disp-sede">
+          Sede
+          <select
+            id="disp-sede"
+            value={sede}
+            onChange={(e) => setSede(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">Sin sede</option>
+            {sedes.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium" htmlFor="disp-consultorio">
+          Consultorio / Sala
+          <input
+            id="disp-consultorio"
+            type="text"
+            value={consultorio}
+            onChange={(e) => setConsultorio(e.target.value)}
+            placeholder="Ej. Consultorio 202"
+            className={inputCls}
+          />
+        </label>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={validarYEnviar}
+          disabled={guardando}
+          className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {guardando ? 'Guardando…' : esEdicion ? 'Guardar cambios' : 'Guardar plantilla'}
         </button>
         <button
           type="button"

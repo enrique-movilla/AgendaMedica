@@ -97,11 +97,19 @@ public static class MapeadorExtensions
 
     // ── Profesional → ProfesionalResumenDto ───────────────────
     public static ProfesionalResumenDto ToResumenDto(this Profesional p) => new(
-        Id:               p.Id,
-        NombresCompletos: p.NombresCompletos,
-        Especialidad:     p.Especialidad?.Nombre ?? string.Empty,
-        Sede:             p.Sede?.Nombre         ?? string.Empty,
-        ConsultorioSala:  p.ConsultorioSala
+        Id:                p.Id,
+        NombresCompletos:  p.NombresCompletos,
+        Especialidad:      p.Especialidad?.Nombre ?? string.Empty,
+        Sede:              p.Sede?.Nombre         ?? string.Empty,
+        ConsultorioSala:   p.ConsultorioSala,
+        EspecialidadId:    p.EspecialidadId,
+        SedeId:            p.SedeId,
+        TipoIdentificacion: p.TipoIdentificacion?.Nombre ?? string.Empty,
+        NumeroIdentificacion: p.NumeroIdentificacion,
+        Celular:           p.Celular,
+        Email:             p.Email,
+        RegistroMedico:    p.RegistroMedico,
+        Activo:            p.Activo
     );
 
     // ── TipoCita → TipoCitaDto ────────────────────────────────

@@ -1,15 +1,20 @@
 import type {
+  ActualizarDisponibilidadRequest,
   ActualizarPacienteRequest,
+  ActualizarProfesionalRequest,
   AgendaDiaItemDto,
   AseguradoraDto,
   CatalogoDefinicion,
   CatalogoFila,
   ConfiguracionBusquedaCampo,
   CrearCitaRequest,
+  CrearDisponibilidadRequest,
   CrearPacienteRequest,
+  CrearProfesionalRequest,
   CitaDto,
   DependenciaCatalogo,
   DisponibilidadDto,
+  DisponibilidadProfesionalDto,
   EspecialidadDto,
   HistorialEstadoDto,
   PacienteDto,
@@ -97,6 +102,18 @@ export const api = {
   // ── Profesionales ──
   profesionales: (params?: { especialidad_id?: number; sedeId?: number }) =>
     request<ProfesionalResumenDto[]>(`/v1/profesionales${toQuery(params)}`),
+  crearProfesional: (payload: CrearProfesionalRequest) =>
+    request<ProfesionalResumenDto>('/v1/profesionales', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  actualizarProfesional: (id: number, payload: ActualizarProfesionalRequest) =>
+    request<ProfesionalResumenDto>(`/v1/profesionales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  inactivarProfesional: (id: number) =>
+    request<void>(`/v1/profesionales/${id}`, { method: 'DELETE' }),
 
   // ── Catálogos ──
   especialidades: () => request<EspecialidadDto[]>('/v1/catalogo/especialidades'),
@@ -186,6 +203,24 @@ export const api = {
     ),
   disponibilidad: (params: { profesionalId: number; fecha: string; tipoCitaId: number }) =>
     request<DisponibilidadDto>(`/v1/citas/disponibilidad${toQuery(params)}`),
+
+  // ── Plantillas de disponibilidad (horarios por profesional) ──
+  plantillasDisponibilidad: (profesionalId: number) =>
+    request<DisponibilidadProfesionalDto[]>(
+      `/v1/disponibilidad${toQuery({ profesionalId })}`,
+    ),
+  crearDisponibilidad: (payload: CrearDisponibilidadRequest) =>
+    request<DisponibilidadProfesionalDto>('/v1/disponibilidad', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  actualizarDisponibilidad: (id: number, payload: ActualizarDisponibilidadRequest) =>
+    request<DisponibilidadProfesionalDto>(`/v1/disponibilidad/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  inactivarDisponibilidad: (id: number) =>
+    request<void>(`/v1/disponibilidad/${id}`, { method: 'DELETE' }),
   historialCita: (id: number) =>
     request<HistorialEstadoDto[]>(`/v1/citas/${id}/historial`),
   cambiarEstadoCita: (id: number, payload: { nuevoEstadoId: number; motivo?: string | null }) =>

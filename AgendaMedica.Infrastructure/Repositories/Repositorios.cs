@@ -342,6 +342,25 @@ public class ProfesionalRepositorio : RepositorioBase<Profesional>, IProfesional
 {
     public ProfesionalRepositorio(AgendaDbContext db) : base(db) { }
 
+    public override async Task<Profesional?> ObtenerPorIdAsync(
+        int id, CancellationToken ct = default)
+        => await _db.Profesionales
+            .Include(p => p.Especialidad)
+            .Include(p => p.Sede)
+            .Include(p => p.TipoIdentificacion)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id, ct);
+
+    public override async Task<IList<Profesional>> ObtenerTodosAsync(
+        CancellationToken ct = default)
+        => await _db.Profesionales
+            .Include(p => p.Especialidad)
+            .Include(p => p.Sede)
+            .Include(p => p.TipoIdentificacion)
+            .OrderBy(p => p.NombresCompletos)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
     public async Task<IList<Profesional>> ObtenerPorIdsAsync(
         IReadOnlyCollection<int> ids, CancellationToken ct = default)
     {

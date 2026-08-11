@@ -137,7 +137,15 @@ public record ProfesionalResumenDto(
     string  NombresCompletos,
     string  Especialidad,
     string  Sede,
-    string? ConsultorioSala
+    string? ConsultorioSala,
+    int     EspecialidadId,
+    int     SedeId,
+    string  TipoIdentificacion,
+    string  NumeroIdentificacion,
+    string? Celular,
+    string? Email,
+    string? RegistroMedico,
+    bool    Activo
 );
 
 // ── Tipo de cita ──────────────────────────────────────────────

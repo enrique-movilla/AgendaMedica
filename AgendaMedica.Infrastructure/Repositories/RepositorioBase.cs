@@ -49,7 +49,7 @@ public class RepositorioBase<T> : IRepositorio<T> where T : EntidadBase
     public virtual async Task<T?> ObtenerPorIdAsync(int id, CancellationToken ct = default)
         => await _set.FindAsync(new object[] { id }, ct);
 
-    public async Task<IList<T>> ObtenerTodosAsync(CancellationToken ct = default)
+    public virtual async Task<IList<T>> ObtenerTodosAsync(CancellationToken ct = default)
         => await _set.ToListAsync(ct);
 
     public async Task AgregarAsync(T entidad, CancellationToken ct = default)
