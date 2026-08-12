@@ -27,7 +27,7 @@ public class BloqueoAgenda : EntidadBase, IActivable
     public TimeSpan? HoraFin    { get; private set; }
 
     // ── Motivo ────────────────────────────────────────────────
-    public string Motivo { get; private set; }
+    public string Motivo { get; private set; } = string.Empty;
 
     // ── Control ───────────────────────────────────────────────
     public bool Activo { get; private set; } = true;

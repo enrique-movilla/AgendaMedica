@@ -42,6 +42,10 @@ Solución .NET 8 para la gestión de citas médicas. Todo el código (identifica
 
 ## Punto de reanudo (Estado de la sesión)
 
-- Fase 1 del roadmap UI/UX completada y committeada: commit `2d54647` en `feature/ui-ux`. Todo el trabajo está pusheado a `origin/feature/ui-ux` (repo `https://github.com/enrique-movilla/AgendaMedica`).
-- **Próximo paso documentado:** Fase 2 (puede arrancarse leyendo `Contexto_Agenda_UIUX.md` §3 Fase 2). La API se puede probar en `http://localhost:5047/swagger` y el frontend en `http://localhost:5173`.
-- Pendientes no bloqueados: agregar `DisponibilidadProfesional` a `AgendaView` como vista (CRUD de plantillas) y un `Menu` de 3 puntos en la timeline (item 8 de Fase 2).
+- Rama `feature/ui-ux`, todo pusheado a `origin` (repo `https://github.com/enrique-movilla/AgendaMedica`). Últimos commits: `11da250` (bloqueos de agenda + excepciones horarias, Fase 3), `dcb0420` (bloquear profesional al editar horarios).
+- **Producción desplegada**: frontend `https://agenda-medica-lime.vercel.app` (Vercel, root dir `frontend`, desplegar desde la raíz con `npx.cmd vercel --prod --yes`) y API `https://emovilla-001-site1.jtempurl.com` (SmarterASP, `site1/` por FTP `ftp://win8229.site4now.net/` user `emovilla-001` pass `RNsPV!5gB`; para re-desplegar, subir los DLL del publish y, si un archivo da 550 por estar bloqueado por el app pool, tocar `web.config` para forzar recycle y reintentar — ver `C:\Users\ajm7c\AppData\Local\Temp\opencode\deploy-ftp.ps1` y `deploy-ftp-retry.ps1`).
+- **Fase 3 casi completa**: items 10 (bloqueo preventivo), 11 (drag & drop) y la ampliación "bloqueos de agenda + excepciones horarias" (nuevas entidades `BloqueoAgenda`/`ExcepcionHoraria`, tablas en Supabase vía DDL idempotente + migración `20260811120000_AgregarBloqueosYExcepciones`, endpoints `v1/BloqueosAgenda` y `v1/ExcepcionesHorarias`, integradas en `GenerarSlotsLibres` de `Queries.cs`) están hechos y desplegados.
+- **SIGUIENTE (Fase 3, pendiente) — ver `Contexto_Agenda_UIUX.md` §3 items 12-13**:
+  1. **Item 12 — Reasignación en bloque y lista de espera de reprogramación** (G16). Diseñar flujo: selección múltiple de citas + reprogramar juntas; lista de espera para reprogramación.
+  2. **Item 13 — Cancelación con motivo → notificación (conectar UI)** (G17): el backend ya exige motivo (ver endpoint de cancelación en `CitasController`); falta la UI en el panel lateral de detalle (item 6 de Fase 2) para cancelar con motivo y que dispare la notificación.
+- Pendientes menores de UI (no bloqueados): menú contextual de 3 puntos en la timeline (item 8 de Fase 2), filtros por estado (item 7).
