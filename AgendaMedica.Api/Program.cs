@@ -44,13 +44,16 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
                 builder.Configuration.GetSection("AllowedOrigins")
-                       .Get<string[]>() ?? new[] { "http://localhost:3000" })
+                       .Get<string[]>() ?? new[] { "http://localhost:3000", "http://localhost:5173", "https://agenda-medica-lime.vercel.app" }) // Añade tu URL real de Vercel aquí como salvavidas
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
 
 var app = builder.Build();
+
+// ¡Muy importante! El nombre debe ser idéntico al de arriba
+app.UseCors("AgendaPolicy");
 
 // ── 5. Middleware global de excepciones ───────────────────────
 // Captura las excepciones del dominio y devuelve HTTP correcto

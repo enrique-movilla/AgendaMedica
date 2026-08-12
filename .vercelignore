@@ -1,0 +1,11 @@
+.vs
+.vercel
+bin
+obj
+node_modules
+frontend/node_modules
+frontend/dist
+AgendaMedica.Api/Properties/PublishProfiles
+*.dll
+*.exe
+*.pdb

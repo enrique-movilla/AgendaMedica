@@ -30,3 +30,6 @@ appsettings.Development.local.json
 # ── Node ── (el frontend trae su propio .gitignore)
 node_modules/
 dist/
+.vercel
+.env*
+!frontend/.env.production
