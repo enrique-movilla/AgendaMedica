@@ -2494,6 +2494,7 @@ function ProfesionalesView() {
         profesionales={items ?? []}
         profesionalInicial={horarioDe}
         onVolver={() => setHorarioDe(null)}
+        bloqueado
       />
     )
   }
@@ -2944,11 +2945,13 @@ function DisponibilidadView({
   profesionalInicial,
   onVolver,
   showVolver = true,
+  bloqueado = false,
 }: {
   profesionales: ProfesionalResumenDto[]
   profesionalInicial: ProfesionalResumenDto | null
   onVolver: () => void
   showVolver?: boolean
+  bloqueado?: boolean
 }) {
   const catalogo = useCatalogos()
   const [profId, setProfId] = useState(
@@ -3034,23 +3037,33 @@ function DisponibilidadView({
       <div className="mb-5 rounded-xl border border-border bg-white p-4">
         <label className="block max-w-sm text-sm font-medium" htmlFor="disp-prof">
           Profesional
-          <select
-            id="disp-prof"
-            value={profId}
-            onChange={(e) => {
-              setProfId(Number(e.target.value))
-              setModo(null)
-              setEditarPlantilla(null)
-            }}
-            className={inputCls}
-          >
-            {profesionales.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombresCompletos}
-                {p.especialidad ? ` — ${p.especialidad}` : ''}
-              </option>
-            ))}
-          </select>
+          {bloqueado ? (
+            <span
+              id="disp-prof"
+              className={`${inputCls} flex items-center gap-2`}
+              aria-disabled="true"
+            >
+              <span className="truncate">{profActual?.nombresCompletos ?? '—'}</span>
+            </span>
+          ) : (
+            <select
+              id="disp-prof"
+              value={profId}
+              onChange={(e) => {
+                setProfId(Number(e.target.value))
+                setModo(null)
+                setEditarPlantilla(null)
+              }}
+              className={inputCls}
+            >
+              {profesionales.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombresCompletos}
+                  {p.especialidad ? ` — ${p.especialidad}` : ''}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
