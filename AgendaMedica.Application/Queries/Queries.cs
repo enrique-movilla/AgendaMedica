@@ -146,9 +146,17 @@ public class ObtenerDisponibilidadHandler
         var plantillas = await _uow.Disponibilidades.ObtenerPorDiaAsync(
             request.ProfesionalId, diaSemana, ct);
 
+        // ── Bloqueos de agenda y excepciones horarias (Fase 3) ─
+        var bloqueos = await _uow.BloqueosAgenda.ObtenerPorFechaAsync(
+            request.ProfesionalId, request.Fecha, ct);
+
+        var excepciones = await _uow.ExcepcionesHorarias.ObtenerPorFechaAsync(
+            request.ProfesionalId, request.Fecha, ct);
+
         // ── Genera slots libres desde la plantilla ─────────────
         var slotsLibres = GenerarSlotsLibres(
-            plantillas, citasDelDia, tipoCita.DuracionMinutos, request.Fecha);
+            plantillas, excepciones, bloqueos, citasDelDia,
+            tipoCita.DuracionMinutos, request.Fecha);
 
         return new DisponibilidadDto(
             ProfesionalId: profesional.Id,
@@ -162,40 +170,120 @@ public class ObtenerDisponibilidadHandler
 
     private static List<SlotLibreDto> GenerarSlotsLibres(
         IList<Domain.Entities.DisponibilidadProfesional> plantillas,
+        IList<Domain.Entities.ExcepcionHoraria> excepciones,
+        IList<Domain.Entities.BloqueoAgenda> bloqueos,
         IList<Domain.Entities.Cita> citas,
         int duracionMinutos,
         DateOnly fecha)
     {
-        if (plantillas.Count == 0) return new();
+        // Si hay excepciones para el día, reemplazan la plantilla semanal.
+        var rangos = excepciones.Count > 0
+            ? excepciones
+                .Select(e => (Inicio: e.HoraInicio,
+                              Fin: e.HoraFin,
+                              Consultorio: (string?)null))
+                .ToList()
+            : plantillas
+                .Select(p => (Inicio: p.HoraInicio,
+                              Fin: p.HoraFin,
+                              Consultorio: p.ConsultorioSala))
+                .OrderBy(r => r.Inicio)
+                .ToList();
+
+        if (rangos.Count == 0) return new();
 
         // Convertir citas del día a rangos para el cruce
         var ocupados = citas
             .Select(c => (Inicio: c.FechaHora.TimeOfDay, Fin: c.FechaHoraFin.TimeOfDay))
             .ToList();
 
-        var libres = new List<SlotLibreDto>();
-        foreach (var p in plantillas.OrderBy(p => p.HoraInicio))
-        {
-            var inicio = p.HoraInicio;
-            var fin    = p.HoraFin;
+        // Franjas bloqueadas (día completo o rango horario)
+        var bloqueados = bloqueos
+            .Select(b => (Inicio: b.HoraInicio, Fin: b.HoraFin))
+            .ToList();
 
-            while (inicio + TimeSpan.FromMinutes(duracionMinutos) <= fin)
+        var libres = new List<SlotLibreDto>();
+        foreach (var baseRango in rangos)
+        {
+            var trozos = RestarBloqueos(
+                (baseRango.Inicio, baseRango.Fin), bloqueados);
+            foreach (var (inicio, fin) in trozos)
             {
-                var finSlot = inicio + TimeSpan.FromMinutes(duracionMinutos);
-                var choca = ocupados.Any(o =>
-                    inicio < o.Fin && finSlot > o.Inicio);
-                if (!choca)
+                var cursor = inicio;
+                while (cursor + TimeSpan.FromMinutes(duracionMinutos) <= fin)
                 {
-                    libres.Add(new SlotLibreDto(
-                        HoraInicio: new DateTime(fecha.Year, fecha.Month, fecha.Day, inicio.Hours, inicio.Minutes, 0).ToString("HH:mm"),
-                        HoraFin: new DateTime(fecha.Year, fecha.Month, fecha.Day, finSlot.Hours, finSlot.Minutes, 0).ToString("HH:mm"),
-                        Disponible: true,
-                        ConsultorioSala: p.ConsultorioSala));
+                    var finSlot = cursor + TimeSpan.FromMinutes(duracionMinutos);
+                    var choca = ocupados.Any(o =>
+                        cursor < o.Fin && finSlot > o.Inicio);
+                    if (!choca)
+                    {
+                        libres.Add(new SlotLibreDto(
+                            HoraInicio: new DateTime(fecha.Year, fecha.Month, fecha.Day, cursor.Hours, cursor.Minutes, 0).ToString("HH:mm"),
+                            HoraFin: new DateTime(fecha.Year, fecha.Month, fecha.Day, finSlot.Hours, finSlot.Minutes, 0).ToString("HH:mm"),
+                            Disponible: true,
+                            ConsultorioSala: baseRango.Consultorio));
+                    }
+                    cursor = finSlot;
                 }
-                inicio = finSlot;
             }
         }
         return libres;
+    }
+
+    /// <summary>
+    /// Divide un rango base restando las franjas bloqueadas.
+    /// Un bloqueo sin horas elimina el rango completo (día bloqueado).
+    /// </summary>
+    private static List<(TimeSpan Inicio, TimeSpan Fin)> RestarBloqueos(
+        (TimeSpan Inicio, TimeSpan Fin) rango,
+        List<(TimeSpan? Inicio, TimeSpan? Fin)> bloqueados)
+    {
+        var trozos = new List<(TimeSpan Inicio, TimeSpan Fin)> { rango };
+
+        foreach (var b in bloqueados)
+        {
+            // Bloqueo de día completo: elimina todos los trozos.
+            if (b.Inicio is null || b.Fin is null)
+            {
+                trozos = new();
+                break;
+            }
+
+            var bi = b.Inicio.Value;
+            var bf = b.Fin.Value;
+            if (bf <= rango.Inicio || bi >= rango.Fin) continue;
+
+            var nuevos = new List<(TimeSpan Inicio, TimeSpan Fin)>();
+            foreach (var t in trozos)
+            {
+                // Sin solape o bordes con el trozo.
+                if (bf <= t.Inicio || bi >= t.Fin)
+                {
+                    nuevos.Add(t);
+                }
+                else if (bi <= t.Inicio && bf >= t.Fin)
+                {
+                    // Bloqueo cubre el trozo completo: se descarta.
+                }
+                else if (bi <= t.Inicio)
+                {
+                    nuevos.Add((bf, t.Fin));
+                }
+                else if (bf >= t.Fin)
+                {
+                    nuevos.Add((t.Inicio, bi));
+                }
+                else
+                {
+                    nuevos.Add((t.Inicio, bi));
+                    nuevos.Add((bf, t.Fin));
+                }
+            }
+            trozos = nuevos;
+            if (trozos.Count == 0) break;
+        }
+
+        return trozos;
     }
 }
 
@@ -218,6 +306,50 @@ public class ObtenerPlantillasDisponibilidadHandler
             request.ProfesionalId, ct);
 
         return plantillas.Select(p => p.ToDisponibilidadDto()).ToList();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  BLOQUEOS DE AGENDA DE UN PROFESIONAL (Fase 3)
+// ══════════════════════════════════════════════════════════════
+public record ObtenerBloqueosAgendaQuery(int ProfesionalId)
+    : IRequest<List<BloqueoAgendaDto>>;
+
+public class ObtenerBloqueosAgendaHandler
+    : IRequestHandler<ObtenerBloqueosAgendaQuery, List<BloqueoAgendaDto>>
+{
+    private readonly IUnitOfWork _uow;
+    public ObtenerBloqueosAgendaHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<List<BloqueoAgendaDto>> Handle(
+        ObtenerBloqueosAgendaQuery request, CancellationToken ct)
+    {
+        var bloqueos = await _uow.BloqueosAgenda.ObtenerTodasDelProfesionalAsync(
+            request.ProfesionalId, ct);
+
+        return bloqueos.Select(b => b.ToBloqueoAgendaDto()).ToList();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  EXCEPCIONES HORARIAS DE UN PROFESIONAL (Fase 3)
+// ══════════════════════════════════════════════════════════════
+public record ObtenerExcepcionesHorariasQuery(int ProfesionalId)
+    : IRequest<List<ExcepcionHorariaDto>>;
+
+public class ObtenerExcepcionesHorariasHandler
+    : IRequestHandler<ObtenerExcepcionesHorariasQuery, List<ExcepcionHorariaDto>>
+{
+    private readonly IUnitOfWork _uow;
+    public ObtenerExcepcionesHorariasHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<List<ExcepcionHorariaDto>> Handle(
+        ObtenerExcepcionesHorariasQuery request, CancellationToken ct)
+    {
+        var excepciones = await _uow.ExcepcionesHorarias.ObtenerTodasDelProfesionalAsync(
+            request.ProfesionalId, ct);
+
+        return excepciones.Select(e => e.ToExcepcionHorariaDto()).ToList();
     }
 }
 

@@ -159,6 +159,75 @@ public class DisponibilidadProfesionalConfiguration
     }
 }
 
+// ── BloqueoAgenda (bloqueos de agenda v1.5) ─────────────────────
+public class BloqueoAgendaConfiguration
+    : IEntityTypeConfiguration<BloqueoAgenda>
+{
+    public void Configure(EntityTypeBuilder<BloqueoAgenda> b)
+    {
+        b.ToTable("BloqueoAgenda");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Id).UseIdentityColumn();
+
+        b.Property(e => e.ProfesionalId).IsRequired();
+        b.Property(e => e.FechaDesde).IsRequired().HasColumnType("date");
+        b.Property(e => e.FechaHasta).IsRequired().HasColumnType("date");
+        b.Property(e => e.HoraInicio).IsRequired(false).HasColumnType("time");
+        b.Property(e => e.HoraFin).IsRequired(false).HasColumnType("time");
+        b.Property(e => e.Motivo).IsRequired().HasMaxLength(200);
+        b.Property(e => e.Activo).IsRequired().HasDefaultValue(true);
+        b.Property(e => e.FechaCreacion)
+            .IsRequired().HasDefaultValueSql("now() at time zone 'utc'");
+        b.Property(e => e.FechaModificacion).IsRequired(false);
+
+        b.ToTable(t => t.HasCheckConstraint(
+            "CK_BloqueoAgenda_Fechas", "\"FechaHasta\" >= \"FechaDesde\""));
+        b.ToTable(t => t.HasCheckConstraint(
+            "CK_BloqueoAgenda_Franja",
+            "(\"HoraInicio\" IS NULL AND \"HoraFin\" IS NULL) OR (\"HoraFin\" > \"HoraInicio\")"));
+
+        b.HasIndex(e => new { e.ProfesionalId, e.FechaDesde, e.FechaHasta })
+            .HasDatabaseName("IX_BloqueoAgenda_Profesional_Fechas");
+
+        b.HasOne(e => e.Profesional)
+            .WithMany()
+            .HasForeignKey(e => e.ProfesionalId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+// ── ExcepcionHoraria (excepciones horarias v1.5) ────────────────
+public class ExcepcionHorariaConfiguration
+    : IEntityTypeConfiguration<ExcepcionHoraria>
+{
+    public void Configure(EntityTypeBuilder<ExcepcionHoraria> b)
+    {
+        b.ToTable("ExcepcionHoraria");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Id).UseIdentityColumn();
+
+        b.Property(e => e.ProfesionalId).IsRequired();
+        b.Property(e => e.Fecha).IsRequired().HasColumnType("date");
+        b.Property(e => e.HoraInicio).IsRequired().HasColumnType("time");
+        b.Property(e => e.HoraFin).IsRequired().HasColumnType("time");
+        b.Property(e => e.Activo).IsRequired().HasDefaultValue(true);
+        b.Property(e => e.FechaCreacion)
+            .IsRequired().HasDefaultValueSql("now() at time zone 'utc'");
+        b.Property(e => e.FechaModificacion).IsRequired(false);
+
+        b.ToTable(t => t.HasCheckConstraint(
+            "CK_ExcepcionHoraria_Rango", "\"HoraFin\" > \"HoraInicio\""));
+
+        b.HasIndex(e => new { e.ProfesionalId, e.Fecha })
+            .HasDatabaseName("IX_ExcepcionHoraria_Profesional_Fecha");
+
+        b.HasOne(e => e.Profesional)
+            .WithMany()
+            .HasForeignKey(e => e.ProfesionalId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 // ── Cita (v1.1 - Corregido para PostgreSQL) ───────────────────────────────
 public class CitaConfiguration : IEntityTypeConfiguration<Cita>
 {

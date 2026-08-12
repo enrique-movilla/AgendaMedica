@@ -226,6 +226,8 @@ public class UnitOfWork : IUnitOfWork
     private IPacienteRepositorio?           _pacientes;
     private IProfesionalRepositorio?        _profesionales;
     private IDisponibilidadRepositorio?     _disponibilidades;
+    private IBloqueoAgendaRepositorio?      _bloqueosAgenda;
+    private IExcepcionHorariaRepositorio?   _excepcionesHorarias;
     private IAseguradoraRepositorio?        _aseguradoras;
     private IEspecialidadRepositorio?       _especialidades;
     private ISedeRepositorio?               _sedes;
@@ -243,6 +245,10 @@ public class UnitOfWork : IUnitOfWork
     public IProfesionalRepositorio  Profesionales  => _profesionales ??= new ProfesionalRepositorio(_db);
     public IDisponibilidadRepositorio Disponibilidades
         => _disponibilidades ??= new DisponibilidadProfesionalRepositorio(_db);
+    public IBloqueoAgendaRepositorio BloqueosAgenda
+        => _bloqueosAgenda ??= new BloqueoAgendaRepositorio(_db);
+    public IExcepcionHorariaRepositorio ExcepcionesHorarias
+        => _excepcionesHorarias ??= new ExcepcionHorariaRepositorio(_db);
     public IAseguradoraRepositorio  Aseguradoras   => _aseguradoras  ??= new AseguradoraRepositorio(_db);
     public IEspecialidadRepositorio Especialidades => _especialidades??= new EspecialidadRepositorio(_db);
     public ISedeRepositorio         Sedes          => _sedes         ??= new SedeRepositorio(_db);

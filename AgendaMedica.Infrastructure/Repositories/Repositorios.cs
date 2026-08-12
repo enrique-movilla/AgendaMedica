@@ -492,3 +492,62 @@ public class DisponibilidadProfesionalRepositorio
             .AsNoTracking()
             .ToListAsync(ct);
 }
+
+// ══════════════════════════════════════════════════════════════
+//  BLOQUEOS DE AGENDA
+// ══════════════════════════════════════════════════════════════
+public class BloqueoAgendaRepositorio
+    : RepositorioBase<BloqueoAgenda>, IBloqueoAgendaRepositorio
+{
+    public BloqueoAgendaRepositorio(AgendaDbContext db) : base(db) { }
+
+    public async Task<IList<BloqueoAgenda>> ObtenerTodasDelProfesionalAsync(
+        int profesionalId, CancellationToken ct = default)
+        => await _db.BloqueosAgenda
+            .Include(b => b.Profesional)
+            .Where(b => b.ProfesionalId == profesionalId && b.Activo)
+            .OrderBy(b => b.FechaDesde)
+            .ThenBy(b => b.FechaHasta)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+    public async Task<IList<BloqueoAgenda>> ObtenerPorFechaAsync(
+        int profesionalId, DateOnly fecha, CancellationToken ct = default)
+        => await _db.BloqueosAgenda
+            .Where(b => b.ProfesionalId == profesionalId
+                     && b.Activo
+                     && b.FechaDesde <= fecha
+                     && b.FechaHasta >= fecha)
+            .OrderBy(b => b.FechaDesde)
+            .ThenBy(b => b.FechaHasta)
+            .AsNoTracking()
+            .ToListAsync(ct);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  EXCEPCIONES HORARIAS
+// ══════════════════════════════════════════════════════════════
+public class ExcepcionHorariaRepositorio
+    : RepositorioBase<ExcepcionHoraria>, IExcepcionHorariaRepositorio
+{
+    public ExcepcionHorariaRepositorio(AgendaDbContext db) : base(db) { }
+
+    public async Task<IList<ExcepcionHoraria>> ObtenerTodasDelProfesionalAsync(
+        int profesionalId, CancellationToken ct = default)
+        => await _db.ExcepcionesHorarias
+            .Include(e => e.Profesional)
+            .Where(e => e.ProfesionalId == profesionalId && e.Activo)
+            .OrderBy(e => e.Fecha)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+    public async Task<IList<ExcepcionHoraria>> ObtenerPorFechaAsync(
+        int profesionalId, DateOnly fecha, CancellationToken ct = default)
+        => await _db.ExcepcionesHorarias
+            .Where(e => e.ProfesionalId == profesionalId
+                     && e.Fecha == fecha
+                     && e.Activo)
+            .OrderBy(e => e.HoraInicio)
+            .AsNoTracking()
+            .ToListAsync(ct);
+}

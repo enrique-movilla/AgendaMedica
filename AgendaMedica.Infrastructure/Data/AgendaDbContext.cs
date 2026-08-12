@@ -26,6 +26,10 @@ public class AgendaDbContext : DbContext
     // ── Plantillas de disponibilidad ─────────────────────────
     public DbSet<DisponibilidadProfesional> Disponibilidades { get; set; }
 
+    // ── Bloqueos de agenda y excepciones horarias ────────────
+    public DbSet<BloqueoAgenda>  BloqueosAgenda   { get; set; }
+    public DbSet<ExcepcionHoraria> ExcepcionesHorarias { get; set; }
+
     // ── Catálogos propios ─────────────────────────────────────
     public DbSet<TipoIdentificacion>   TiposIdentificacion  { get; set; }
     public DbSet<Especialidad>         Especialidades       { get; set; }

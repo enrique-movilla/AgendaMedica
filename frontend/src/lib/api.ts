@@ -4,11 +4,14 @@ import type {
   ActualizarProfesionalRequest,
   AgendaDiaItemDto,
   AseguradoraDto,
+  BloqueoAgendaDto,
   CatalogoDefinicion,
   CatalogoFila,
   ConfiguracionBusquedaCampo,
+  CrearBloqueoAgendaRequest,
   CrearCitaRequest,
   CrearDisponibilidadRequest,
+  CrearExcepcionHorariaRequest,
   CrearPacienteRequest,
   CrearProfesionalRequest,
   CitaDto,
@@ -16,6 +19,7 @@ import type {
   DisponibilidadDto,
   DisponibilidadProfesionalDto,
   EspecialidadDto,
+  ExcepcionHorariaDto,
   HistorialEstadoDto,
   PacienteDto,
   PacienteListaDto,
@@ -221,6 +225,32 @@ export const api = {
     }),
   inactivarDisponibilidad: (id: number) =>
     request<void>(`/v1/disponibilidad/${id}`, { method: 'DELETE' }),
+
+  // ── Bloqueos de agenda (vacaciones, descansos, franjas) ─────
+  bloqueosAgenda: (profesionalId: number) =>
+    request<BloqueoAgendaDto[]>(
+      `/v1/BloqueosAgenda${toQuery({ profesionalId })}`,
+    ),
+  crearBloqueoAgenda: (payload: CrearBloqueoAgendaRequest) =>
+    request<BloqueoAgendaDto>('/v1/BloqueosAgenda', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  inactivarBloqueoAgenda: (id: number) =>
+    request<void>(`/v1/BloqueosAgenda/${id}`, { method: 'DELETE' }),
+
+  // ── Excepciones horarias (días puntuales con horario distinto) ─
+  excepcionesHorarias: (profesionalId: number) =>
+    request<ExcepcionHorariaDto[]>(
+      `/v1/ExcepcionesHorarias${toQuery({ profesionalId })}`,
+    ),
+  crearExcepcionHoraria: (payload: CrearExcepcionHorariaRequest) =>
+    request<ExcepcionHorariaDto>('/v1/ExcepcionesHorarias', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  inactivarExcepcionHoraria: (id: number) =>
+    request<void>(`/v1/ExcepcionesHorarias/${id}`, { method: 'DELETE' }),
   historialCita: (id: number) =>
     request<HistorialEstadoDto[]>(`/v1/citas/${id}/historial`),
   cambiarEstadoCita: (id: number, payload: { nuevoEstadoId: number; motivo?: string | null }) =>

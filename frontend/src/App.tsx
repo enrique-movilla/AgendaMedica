@@ -7,13 +7,17 @@ import type {
   ActualizarDisponibilidadRequest,
   AgendaDiaItemDto,
   AseguradoraDto,
+  BloqueoAgendaDto,
   CatalogoDefinicion,
   CatalogoFila,
   CitaDto,
+  CrearBloqueoAgendaRequest,
+  CrearExcepcionHorariaRequest,
   CrearProfesionalRequest,
   DependenciaCatalogo,
   DisponibilidadProfesionalDto,
   EspecialidadDto,
+  ExcepcionHorariaDto,
   HistorialEstadoDto,
   PacienteDto,
   PacienteListaDto,
@@ -2965,21 +2969,35 @@ function DisponibilidadView({
   const [editarPlantilla, setEditarPlantilla] =
     useState<DisponibilidadProfesionalDto | null>(null)
   const [guardando, setGuardando] = useState(false)
+  const [bloqueos, setBloqueos] = useState<BloqueoAgendaDto[]>([])
+  const [excepciones, setExcepciones] = useState<ExcepcionHorariaDto[]>([])
+  const [modoBloqueo, setModoBloqueo] = useState(false)
+  const [modoExcepcion, setModoExcepcion] = useState(false)
+  const [guardandoEsp, setGuardandoEsp] = useState(false)
 
   const profActual = profesionales.find((p) => p.id === profId)
 
   const recargar = () => {
     if (!profId) {
       setPlantillas([])
+      setBloqueos([])
+      setExcepciones([])
       setCargando(false)
       return
     }
     setCargando(true)
     setError(null)
-    api
-      .plantillasDisponibilidad(profId)
-      .then(setPlantillas)
-      .catch((e) => setError(msgError(e)))
+    Promise.all([
+      api.plantillasDisponibilidad(profId),
+      api.bloqueosAgenda(profId),
+      api.excepcionesHorarias(profId),
+    ])
+      .then(([p, b, e]) => {
+        setPlantillas(p)
+        setBloqueos(b)
+        setExcepciones(e)
+      })
+      .catch((err) => setError(msgError(err)))
       .finally(() => setCargando(false))
   }
 
@@ -3053,6 +3071,8 @@ function DisponibilidadView({
                 setProfId(Number(e.target.value))
                 setModo(null)
                 setEditarPlantilla(null)
+                setModoBloqueo(false)
+                setModoExcepcion(false)
               }}
               className={inputCls}
             >
@@ -3181,6 +3201,205 @@ function DisponibilidadView({
           </div>
         </div>
       )}
+
+      {/* ── Bloqueos de agenda (vacaciones, congresos, descanso) ── */}
+      <div className="mt-8">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Bloqueos de agenda</h2>
+          <button
+            type="button"
+            disabled={modoBloqueo || !profId}
+            onClick={() => setModoBloqueo(true)}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Nuevo bloqueo
+          </button>
+        </div>
+        <p className="mb-4 text-sm text-foreground/60">
+          Vacaciones, congresos o descansos que suspenden la atención. Si indica hora de inicio y fin,
+          solo se bloquea esa franja del día (por ejemplo, almuerzo).
+        </p>
+
+        {modoBloqueo && (
+          <FormBloqueo
+            guardando={guardandoEsp}
+            onCancelar={() => setModoBloqueo(false)}
+            onGuardar={async (payload) => {
+              setGuardandoEsp(true)
+              setError(null)
+              try {
+                await api.crearBloqueoAgenda({ ...payload, profesionalId: profId })
+                setExito('Bloqueo creado correctamente.')
+                setModoBloqueo(false)
+                recargar()
+              } catch (e) {
+                setError(msgError(e))
+              } finally {
+                setGuardandoEsp(false)
+              }
+            }}
+          />
+        )}
+
+        {bloqueos.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-white p-8 text-center text-sm text-foreground/60">
+            No hay bloqueos configurados para este profesional.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-border bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-foreground/60">
+                    <th className="px-4 py-3">Desde</th>
+                    <th className="px-4 py-3">Hasta</th>
+                    <th className="px-4 py-3">Franja</th>
+                    <th className="px-4 py-3">Motivo</th>
+                    <th className="px-4 py-3">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bloqueos.map((b) => (
+                    <tr
+                      key={b.id}
+                      className="border-t border-border first:border-t-0 hover:bg-muted/40"
+                    >
+                      <td className="px-4 py-3">{b.fechaDesde}</td>
+                      <td className="px-4 py-3">{b.fechaHasta}</td>
+                      <td className="px-4 py-3">
+                        {b.horaInicio && b.horaFin
+                          ? `${b.horaInicio}–${b.horaFin}`
+                          : 'Día completo'}
+                      </td>
+                      <td className="px-4 py-3">{b.motivo}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (
+                              !confirm(
+                                `¿Desea inactivar el bloqueo "${b.motivo}" del ${b.fechaDesde} al ${b.fechaHasta}?`,
+                              )
+                            )
+                              return
+                            try {
+                              await api.inactivarBloqueoAgenda(b.id)
+                              setExito('Bloqueo inactivado.')
+                              recargar()
+                            } catch (e) {
+                              setError(msgError(e))
+                            }
+                          }}
+                          className="rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50"
+                        >
+                          Inactivar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-border px-4 py-3 text-sm text-foreground/60">
+              {bloqueos.length} bloqueo{bloqueos.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Excepciones horarias (días puntuales con horario distinto) ── */}
+      <div className="mt-8">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Excepciones horarias</h2>
+          <button
+            type="button"
+            disabled={modoExcepcion || !profId}
+            onClick={() => setModoExcepcion(true)}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Nueva excepción
+          </button>
+        </div>
+        <p className="mb-4 text-sm text-foreground/60">
+          Un día puntual en que el profesional atiende con un horario distinto al de su plantilla
+          semanal (jornada reducida, campaña, puente…). Reemplaza la plantilla de ese día.
+        </p>
+
+        {modoExcepcion && (
+          <FormExcepcion
+            guardando={guardandoEsp}
+            onCancelar={() => setModoExcepcion(false)}
+            onGuardar={async (payload) => {
+              setGuardandoEsp(true)
+              setError(null)
+              try {
+                await api.crearExcepcionHoraria({ ...payload, profesionalId: profId })
+                setExito('Excepción horaria creada correctamente.')
+                setModoExcepcion(false)
+                recargar()
+              } catch (e) {
+                setError(msgError(e))
+              } finally {
+                setGuardandoEsp(false)
+              }
+            }}
+          />
+        )}
+
+        {excepciones.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-white p-8 text-center text-sm text-foreground/60">
+            No hay excepciones horarias para este profesional.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-border bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-foreground/60">
+                    <th className="px-4 py-3">Fecha</th>
+                    <th className="px-4 py-3">Desde</th>
+                    <th className="px-4 py-3">Hasta</th>
+                    <th className="px-4 py-3">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {excepciones.map((x) => (
+                    <tr
+                      key={x.id}
+                      className="border-t border-border first:border-t-0 hover:bg-muted/40"
+                    >
+                      <td className="px-4 py-3">{x.fecha}</td>
+                      <td className="px-4 py-3">{x.horaInicio}</td>
+                      <td className="px-4 py-3">{x.horaFin}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm(`¿Desea inactivar la excepción del ${x.fecha}?`)) return
+                            try {
+                              await api.inactivarExcepcionHoraria(x.id)
+                              setExito('Excepción horaria inactivada.')
+                              recargar()
+                            } catch (e) {
+                              setError(msgError(e))
+                            }
+                          }}
+                          className="rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50"
+                        >
+                          Inactivar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-border px-4 py-3 text-sm text-foreground/60">
+              {excepciones.length} excepción{excepciones.length !== 1 ? 'es' : ''}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -3329,6 +3548,244 @@ function FormDisponibilidad({
           className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {guardando ? 'Guardando…' : esEdicion ? 'Guardar cambios' : 'Guardar plantilla'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          disabled={guardando}
+          className="rounded-md border border-border px-5 py-2.5 text-sm font-semibold text-foreground/70 transition-colors hover:bg-muted disabled:opacity-40"
+        >
+          Cancelar
+        </button>
+      </div>
+    </Seccion>
+  )
+}
+
+// ── Formulario de bloqueo de agenda (vacaciones, descanso, franja) ──
+function FormBloqueo({
+  guardando,
+  onCancelar,
+  onGuardar,
+}: {
+  guardando: boolean
+  onCancelar: () => void
+  onGuardar: (payload: Omit<CrearBloqueoAgendaRequest, 'profesionalId'>) => Promise<void>
+}) {
+  const [motivo, setMotivo] = useState('')
+  const [fechaDesde, setFechaDesde] = useState(hoyISO())
+  const [fechaHasta, setFechaHasta] = useState(hoyISO())
+  const [franja, setFranja] = useState(false)
+  const [hInicio, setHInicio] = useState('13:00')
+  const [hFin, setHFin] = useState('14:00')
+  const [errors, setErrors] = useState<string[]>([])
+
+  function validarYEnviar() {
+    const e: string[] = []
+    if (!motivo.trim()) e.push('Debe indicar un motivo.')
+    if (!fechaDesde || !fechaHasta) {
+      e.push('Debe indicar la fecha de inicio y fin.')
+    } else if (fechaHasta < fechaDesde) {
+      e.push('La fecha final no puede ser anterior a la inicial.')
+    }
+    if (franja) {
+      if (!hInicio || !hFin) {
+        e.push('Debe indicar hora de inicio y fin de la franja.')
+      } else if (hFin <= hInicio) {
+        e.push('La hora de fin debe ser posterior a la hora de inicio.')
+      }
+    }
+    setErrors(e)
+    if (e.length > 0) return
+
+    onGuardar({
+      fechaDesde,
+      fechaHasta,
+      motivo: motivo.trim(),
+      horaInicio: franja ? hInicio : null,
+      horaFin: franja ? hFin : null,
+    })
+  }
+
+  return (
+    <Seccion titulo="Nuevo bloqueo de agenda">
+      {errors.length > 0 && (
+        <ul className="mb-4 space-y-1 rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errors.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="block text-sm font-medium" htmlFor="blq-motivo">
+          Motivo
+          <input
+            id="blq-motivo"
+            type="text"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder="Ej. Vacaciones, congreso, almuerzo…"
+            className={inputCls}
+          />
+        </label>
+        <label className="block text-sm font-medium" htmlFor="blq-desde">
+          Fecha desde
+          <input
+            id="blq-desde"
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className="block text-sm font-medium" htmlFor="blq-hasta">
+          Fecha hasta
+          <input
+            id="blq-hasta"
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={franja}
+            onChange={(e) => setFranja(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Bloquear solo una franja del día (dejar el resto disponible)
+        </label>
+        {franja && (
+          <>
+            <label className="block text-sm font-medium" htmlFor="blq-hinicio">
+              Hora de inicio
+              <input
+                id="blq-hinicio"
+                type="time"
+                value={hInicio}
+                onChange={(e) => setHInicio(e.target.value)}
+                className={inputCls}
+              />
+            </label>
+            <label className="block text-sm font-medium" htmlFor="blq-hfin">
+              Hora de fin
+              <input
+                id="blq-hfin"
+                type="time"
+                value={hFin}
+                onChange={(e) => setHFin(e.target.value)}
+                className={inputCls}
+              />
+            </label>
+          </>
+        )}
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={validarYEnviar}
+          disabled={guardando}
+          className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {guardando ? 'Guardando…' : 'Guardar bloqueo'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          disabled={guardando}
+          className="rounded-md border border-border px-5 py-2.5 text-sm font-semibold text-foreground/70 transition-colors hover:bg-muted disabled:opacity-40"
+        >
+          Cancelar
+        </button>
+      </div>
+    </Seccion>
+  )
+}
+
+// ── Formulario de excepción horaria (día puntual con horario distinto) ──
+function FormExcepcion({
+  guardando,
+  onCancelar,
+  onGuardar,
+}: {
+  guardando: boolean
+  onCancelar: () => void
+  onGuardar: (payload: Omit<CrearExcepcionHorariaRequest, 'profesionalId'>) => Promise<void>
+}) {
+  const [fecha, setFecha] = useState(hoyISO())
+  const [hInicio, setHInicio] = useState('08:00')
+  const [hFin, setHFin] = useState('12:00')
+  const [errors, setErrors] = useState<string[]>([])
+
+  function validarYEnviar() {
+    const e: string[] = []
+    if (!fecha) e.push('Debe indicar la fecha.')
+    if (!hInicio || !hFin) {
+      e.push('Debe indicar hora de inicio y fin.')
+    } else if (hFin <= hInicio) {
+      e.push('La hora de fin debe ser posterior a la hora de inicio.')
+    }
+    setErrors(e)
+    if (e.length > 0) return
+
+    onGuardar({ fecha, horaInicio: hInicio, horaFin: hFin })
+  }
+
+  return (
+    <Seccion titulo="Nueva excepción horaria">
+      {errors.length > 0 && (
+        <ul className="mb-4 space-y-1 rounded-md border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errors.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="block text-sm font-medium" htmlFor="exc-fecha">
+          Fecha
+          <input
+            id="exc-fecha"
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className="block text-sm font-medium" htmlFor="exc-inicio">
+          Hora de inicio
+          <input
+            id="exc-inicio"
+            type="time"
+            value={hInicio}
+            onChange={(e) => setHInicio(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className="block text-sm font-medium" htmlFor="exc-fin">
+          Hora de fin
+          <input
+            id="exc-fin"
+            type="time"
+            value={hFin}
+            onChange={(e) => setHFin(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={validarYEnviar}
+          disabled={guardando}
+          className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {guardando ? 'Guardando…' : 'Guardar excepción'}
         </button>
         <button
           type="button"

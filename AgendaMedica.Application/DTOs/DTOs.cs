@@ -86,6 +86,30 @@ public record DisponibilidadProfesionalDto(
     bool    Activo
 );
 
+// ── Bloqueo de agenda (vacaciones, congresos, descanso) ───────
+public record BloqueoAgendaDto(
+    int     Id,
+    int     ProfesionalId,
+    string  NombreProfesional,
+    string  FechaDesde,
+    string  FechaHasta,
+    string? HoraInicio,
+    string? HoraFin,
+    string  Motivo,
+    bool    Activo
+);
+
+// ── Excepción horaria (día puntual con horario distinto) ──────
+public record ExcepcionHorariaDto(
+    int     Id,
+    int     ProfesionalId,
+    string  NombreProfesional,
+    string  Fecha,
+    string  HoraInicio,
+    string  HoraFin,
+    bool    Activo
+);
+
 // ── Paciente resumen ──────────────────────────────────────────
 public record PacienteResumenDto(
     int     Id,

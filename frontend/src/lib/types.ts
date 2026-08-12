@@ -292,6 +292,44 @@ export interface ActualizarDisponibilidadRequest {
   consultorioSala?: string | null
 }
 
+export interface BloqueoAgendaDto {
+  id: number
+  profesionalId: number
+  nombreProfesional: string
+  fechaDesde: string
+  fechaHasta: string
+  horaInicio: string | null
+  horaFin: string | null
+  motivo: string
+  activo: boolean
+}
+
+export interface CrearBloqueoAgendaRequest {
+  profesionalId: number
+  fechaDesde: string
+  fechaHasta: string
+  motivo: string
+  horaInicio?: string | null
+  horaFin?: string | null
+}
+
+export interface ExcepcionHorariaDto {
+  id: number
+  profesionalId: number
+  nombreProfesional: string
+  fecha: string
+  horaInicio: string
+  horaFin: string
+  activo: boolean
+}
+
+export interface CrearExcepcionHorariaRequest {
+  profesionalId: number
+  fecha: string
+  horaInicio: string
+  horaFin: string
+}
+
 export interface HistorialEstadoDto {
   id: number
   estadoAnterior: string | null

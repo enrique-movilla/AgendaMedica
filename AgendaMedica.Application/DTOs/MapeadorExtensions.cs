@@ -199,4 +199,30 @@ SedeId:             d.SedeId,
         ConsultorioSala:    d.ConsultorioSala,
         Activo:             d.Activo
     );
+
+    // ── BloqueoAgenda → BloqueoAgendaDto ──
+    public static BloqueoAgendaDto ToBloqueoAgendaDto(
+        this BloqueoAgenda b) => new(
+        Id:                 b.Id,
+        ProfesionalId:      b.ProfesionalId,
+        NombreProfesional:  b.Profesional?.NombresCompletos ?? string.Empty,
+        FechaDesde:         b.FechaDesde.ToString("yyyy-MM-dd"),
+        FechaHasta:         b.FechaHasta.ToString("yyyy-MM-dd"),
+        HoraInicio:         b.HoraInicio?.ToString(@"hh\:mm"),
+        HoraFin:            b.HoraFin?.ToString(@"hh\:mm"),
+        Motivo:             b.Motivo,
+        Activo:             b.Activo
+    );
+
+    // ── ExcepcionHoraria → ExcepcionHorariaDto ──
+    public static ExcepcionHorariaDto ToExcepcionHorariaDto(
+        this ExcepcionHoraria e) => new(
+        Id:                 e.Id,
+        ProfesionalId:      e.ProfesionalId,
+        NombreProfesional:  e.Profesional?.NombresCompletos ?? string.Empty,
+        Fecha:              e.Fecha.ToString("yyyy-MM-dd"),
+        HoraInicio:         e.HoraInicio.ToString(@"hh\:mm"),
+        HoraFin:            e.HoraFin.ToString(@"hh\:mm"),
+        Activo:             e.Activo
+    );
 }

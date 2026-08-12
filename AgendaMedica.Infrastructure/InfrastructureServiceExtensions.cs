@@ -81,6 +81,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IDisponibilidadRepositorio,
                            DisponibilidadProfesionalRepositorio>();
 
+        // ── Bloqueos de agenda y excepciones horarias ─────────
+        services.AddScoped<IBloqueoAgendaRepositorio,
+                           BloqueoAgendaRepositorio>();
+        services.AddScoped<IExcepcionHorariaRepositorio,
+                           ExcepcionHorariaRepositorio>();
+
         // ── Catálogos propios ─────────────────────────────────
         services.AddScoped<IAseguradoraRepositorio,  AseguradoraRepositorio>();
         services.AddScoped<IEspecialidadRepositorio, EspecialidadRepositorio>();

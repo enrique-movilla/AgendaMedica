@@ -34,6 +34,10 @@ public interface IUnitOfWork : IAsyncDisposable
     // Plantillas de disponibilidad (agenda)
     IDisponibilidadRepositorio     Disponibilidades     { get; }
 
+    // Bloqueos de agenda y excepciones horarias
+    IBloqueoAgendaRepositorio      BloqueosAgenda       { get; }
+    IExcepcionHorariaRepositorio   ExcepcionesHorarias  { get; }
+
     // Catálogos propios
     IAseguradoraRepositorio        Aseguradoras         { get; }
     IEspecialidadRepositorio       Especialidades       { get; }
@@ -144,6 +148,30 @@ public interface IDisponibilidadRepositorio : IRepositorio<DisponibilidadProfesi
     /// <summary>Devuelve las plantillas activas del profesional para un día de la semana.</summary>
     Task<IList<DisponibilidadProfesional>> ObtenerPorDiaAsync(
         int profesionalId, byte diaSemana, CancellationToken ct = default);
+}
+
+// ── IBloqueoAgendaRepositorio (bloqueos de agenda) ─────────────
+public interface IBloqueoAgendaRepositorio : IRepositorio<BloqueoAgenda>
+{
+    /// <summary>Devuelve los bloqueos activos de un profesional.</summary>
+    Task<IList<BloqueoAgenda>> ObtenerTodasDelProfesionalAsync(
+        int profesionalId, CancellationToken ct = default);
+
+    /// <summary>Devuelve los bloqueos activos que cubren una fecha concreta.</summary>
+    Task<IList<BloqueoAgenda>> ObtenerPorFechaAsync(
+        int profesionalId, DateOnly fecha, CancellationToken ct = default);
+}
+
+// ── IExcepcionHorariaRepositorio (excepciones horarias) ────────
+public interface IExcepcionHorariaRepositorio : IRepositorio<ExcepcionHoraria>
+{
+    /// <summary>Devuelve las excepciones activas de un profesional.</summary>
+    Task<IList<ExcepcionHoraria>> ObtenerTodasDelProfesionalAsync(
+        int profesionalId, CancellationToken ct = default);
+
+    /// <summary>Devuelve las excepciones activas de un profesional para una fecha concreta.</summary>
+    Task<IList<ExcepcionHoraria>> ObtenerPorFechaAsync(
+        int profesionalId, DateOnly fecha, CancellationToken ct = default);
 }
 
 // ── IAseguradoraRepositorio (actualizado) ─────────────────────

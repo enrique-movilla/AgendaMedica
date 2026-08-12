@@ -320,6 +320,121 @@ public class InactivarDisponibilidadHandler
 }
 
 // ══════════════════════════════════════════════════════════════
+//  BLOQUEOS DE AGENDA Y EXCEPCIONES HORARIAS (Fase 3)
+// ══════════════════════════════════════════════════════════════
+public record CrearBloqueoAgendaCommand(
+    int       ProfesionalId,
+    DateOnly  FechaDesde,
+    DateOnly  FechaHasta,
+    string?   HoraInicio,
+    string?   HoraFin,
+    string    Motivo
+) : IRequest<BloqueoAgendaDto>;
+
+public class CrearBloqueoAgendaHandler
+    : IRequestHandler<CrearBloqueoAgendaCommand, BloqueoAgendaDto>
+{
+    private readonly IUnitOfWork _uow;
+    public CrearBloqueoAgendaHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<BloqueoAgendaDto> Handle(
+        CrearBloqueoAgendaCommand request, CancellationToken ct)
+    {
+        var profesional = await _uow.Profesionales.ObtenerPorIdAsync(request.ProfesionalId, ct)
+            ?? throw new EntidadNoEncontradaException("Profesional", request.ProfesionalId);
+
+        var entidad = new BloqueoAgenda(
+            profesionalId: request.ProfesionalId,
+            fechaDesde: request.FechaDesde,
+            fechaHasta: request.FechaHasta,
+            motivo: request.Motivo,
+            horaInicio: request.HoraInicio is null
+                ? null
+                : TimeOnly.Parse(request.HoraInicio).ToTimeSpan(),
+            horaFin: request.HoraFin is null
+                ? null
+                : TimeOnly.Parse(request.HoraFin).ToTimeSpan());
+
+        await _uow.BloqueosAgenda.AgregarAsync(entidad, ct);
+        await _uow.GuardarAsync(ct);
+        return entidad.ToBloqueoAgendaDto();
+    }
+}
+
+public record InactivarBloqueoAgendaCommand(int Id) : IRequest<bool>;
+
+public class InactivarBloqueoAgendaHandler
+    : IRequestHandler<InactivarBloqueoAgendaCommand, bool>
+{
+    private readonly IUnitOfWork _uow;
+    public InactivarBloqueoAgendaHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<bool> Handle(
+        InactivarBloqueoAgendaCommand request, CancellationToken ct)
+    {
+        var entidad = await _uow.BloqueosAgenda.ObtenerPorIdAsync(request.Id, ct)
+            ?? throw new EntidadNoEncontradaException("BloqueoAgenda", request.Id);
+
+        entidad.Inactivar();
+        _uow.BloqueosAgenda.Actualizar(entidad);
+        await _uow.GuardarAsync(ct);
+        return true;
+    }
+}
+
+public record CrearExcepcionHorariaCommand(
+    int      ProfesionalId,
+    DateOnly Fecha,
+    string   HoraInicio,
+    string   HoraFin
+) : IRequest<ExcepcionHorariaDto>;
+
+public class CrearExcepcionHorariaHandler
+    : IRequestHandler<CrearExcepcionHorariaCommand, ExcepcionHorariaDto>
+{
+    private readonly IUnitOfWork _uow;
+    public CrearExcepcionHorariaHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<ExcepcionHorariaDto> Handle(
+        CrearExcepcionHorariaCommand request, CancellationToken ct)
+    {
+        var profesional = await _uow.Profesionales.ObtenerPorIdAsync(request.ProfesionalId, ct)
+            ?? throw new EntidadNoEncontradaException("Profesional", request.ProfesionalId);
+
+        var entidad = new ExcepcionHoraria(
+            profesionalId: request.ProfesionalId,
+            fecha: request.Fecha,
+            horaInicio: TimeOnly.Parse(request.HoraInicio).ToTimeSpan(),
+            horaFin: TimeOnly.Parse(request.HoraFin).ToTimeSpan());
+
+        await _uow.ExcepcionesHorarias.AgregarAsync(entidad, ct);
+        await _uow.GuardarAsync(ct);
+        return entidad.ToExcepcionHorariaDto();
+    }
+}
+
+public record InactivarExcepcionHorariaCommand(int Id) : IRequest<bool>;
+
+public class InactivarExcepcionHorariaHandler
+    : IRequestHandler<InactivarExcepcionHorariaCommand, bool>
+{
+    private readonly IUnitOfWork _uow;
+    public InactivarExcepcionHorariaHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<bool> Handle(
+        InactivarExcepcionHorariaCommand request, CancellationToken ct)
+    {
+        var entidad = await _uow.ExcepcionesHorarias.ObtenerPorIdAsync(request.Id, ct)
+            ?? throw new EntidadNoEncontradaException("ExcepcionHoraria", request.Id);
+
+        entidad.Inactivar();
+        _uow.ExcepcionesHorarias.Actualizar(entidad);
+        await _uow.GuardarAsync(ct);
+        return true;
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
 //  BLOQUEO PREVENTIVO DE TURNOS (Fase 3)
 // ══════════════════════════════════════════════════════════════
 public record ReservarBloqueoCommand(
