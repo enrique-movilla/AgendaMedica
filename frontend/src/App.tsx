@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import { api, ApiError } from './lib/api'
 import { useConfigBusqueda } from './lib/configBusqueda'
 import BuscadorAseguradora from './components/BuscadorAseguradora'
@@ -4412,6 +4413,7 @@ function AdminCatalogoView({
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   )
 }
