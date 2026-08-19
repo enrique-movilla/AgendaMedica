@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api, ApiError } from './lib/api'
 import { useConfigBusqueda } from './lib/configBusqueda'
 import BuscadorAseguradora from './components/BuscadorAseguradora'
@@ -256,7 +257,7 @@ function ModalCancelarCita({
   }
 
   if (exito) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onExito}>
         <div
           role="dialog"
@@ -276,11 +277,12 @@ function ModalCancelarCita({
           </button>
           <p className="mt-2 text-center text-[11px] text-foreground/50">Enter o clic para cerrar</p>
         </div>
-      </div>
+      </div>,
+      document.body,
     )
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={() => { if (!enviando) onCancelar() }}
@@ -352,7 +354,8 @@ function ModalCancelarCita({
         </div>
         <p className="mt-2 text-center text-[11px] text-foreground/50">ESC para cerrar</p>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
