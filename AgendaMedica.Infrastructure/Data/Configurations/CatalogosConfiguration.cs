@@ -185,3 +185,42 @@ public class SedeConfiguration
             .IsRequired(false);
     }
 }
+
+// ── MotivoCancelacion ──────────────────────────────────────────
+public class MotivoCancelacionConfiguration
+    : IEntityTypeConfiguration<MotivoCancelacion>
+{
+    public void Configure(EntityTypeBuilder<MotivoCancelacion> b)
+    {
+        b.ToTable("MotivoCancelacion");
+
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Id).UseIdentityColumn();
+
+        b.Property(e => e.Nombre)
+            .IsRequired()
+            .HasMaxLength(150);
+
+        b.Property(e => e.Descripcion)
+            .HasMaxLength(255);
+
+        b.Property(e => e.Orden)
+            .IsRequired()
+            .HasDefaultValue((short)0);
+
+        b.Property(e => e.Activo)
+            .IsRequired()
+            .HasDefaultValue(true);
+
+        b.Property(e => e.FechaCreacion)
+            .IsRequired()
+            .HasColumnType("timestamp(0)")
+            .HasDefaultValueSql("now() at time zone 'utc'()");
+
+        b.Property(e => e.FechaModificacion)
+            .HasColumnType("timestamp(0)")
+            .IsRequired(false);
+
+        b.HasIndex(e => e.Nombre).IsUnique();
+    }
+}

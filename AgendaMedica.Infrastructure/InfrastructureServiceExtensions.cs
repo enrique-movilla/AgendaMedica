@@ -92,6 +92,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IEspecialidadRepositorio, EspecialidadRepositorio>();
         services.AddScoped<ISedeRepositorio,         SedeRepositorio>();
         services.AddScoped<ITipoCitaRepositorio,     TipoCitaRepositorio>();
+        services.AddScoped<IMotivoCancelacionRepositorio, MotivoCancelacionRepositorio>();
 
         // ── Catálogos compartidos ─────────────────────────────
         services.AddScoped<IDepartamentoRepositorio, DepartamentoRepositorio>();

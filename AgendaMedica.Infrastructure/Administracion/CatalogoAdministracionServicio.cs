@@ -293,6 +293,69 @@ internal abstract class CatalogoAdaptadorBase<TEntidad> : ICatalogoAdaptador
 }
 
 // ══════════════════════════════════════════════════════════════
+//  ADAPTADOR :: MOTIVO DE CANCELACIÓN
+// ══════════════════════════════════════════════════════════════
+internal sealed class AdaptadorMotivoCancelacion : CatalogoAdaptadorBase<MotivoCancelacion>
+{
+    public AdaptadorMotivoCancelacion(AgendaDbContext contexto) : base(contexto) { }
+
+    public override CatalogoDefinicion Definicion => new(
+        Tabla:            "motivos-cancelacion",
+        Etiqueta:         "Motivos de cancelación",
+        Descripcion:      "Categorías de motivos para cancelar una cita médica.",
+        CampoPrincipal:   "nombre",
+        Campos:
+        [
+            new("nombre",      "Nombre",      TipoCampoCatalogo.Texto, Requerido: true),
+            new("descripcion", "Descripción", TipoCampoCatalogo.Texto, Requerido: false),
+            new("orden",       "Orden",       TipoCampoCatalogo.Numero, Requerido: false),
+        ]);
+
+    protected override string CampoOrdenYBusqueda => "Nombre";
+    protected override string IdTexto(MotivoCancelacion m) => m.Id.ToString();
+    protected override Expression<Func<MotivoCancelacion, bool>> PredicadoPorId(string id)
+        => m => m.Id == int.Parse(id);
+
+    protected override IReadOnlyDictionary<string, object?> EscribirValores(MotivoCancelacion m)
+        => new Dictionary<string, object?>
+        {
+            ["nombre"]      = m.Nombre,
+            ["descripcion"] = m.Descripcion,
+            ["orden"]       = m.Orden,
+            ["activo"]      = m.Activo,
+        };
+
+    protected override MotivoCancelacion CrearDesde(IDictionary<string, object?> valores)
+        => new MotivoCancelacion(
+            CatalogoValores.Texto(valores, "nombre"),
+            CatalogoValores.TextoNulo(valores, "descripcion"),
+            (short)CatalogoValores.Entero(valores, "orden"));
+
+    protected override void Sobreescribir(MotivoCancelacion entidad, IDictionary<string, object?> valores)
+        => entidad.Actualizar(
+            CatalogoValores.Texto(valores, "nombre"),
+            CatalogoValores.TextoNulo(valores, "descripcion"),
+            (short)CatalogoValores.Entero(valores, "orden"));
+
+    protected override async Task<bool> ExisteDuplicadoAsync(
+        IDictionary<string, object?> valores, string? excluirId, CancellationToken ct)
+    {
+        var nombre = NormalizacionTexto.Normalizar(CatalogoValores.Texto(valores, "nombre"));
+        var query = Set.Where(m => EF.Functions.ILike(
+            EF.Functions.Unaccent(m.Nombre), nombre));
+        if (excluirId is not null) query = query.Where(m => m.Id != int.Parse(excluirId));
+        return await query.AnyAsync(ct);
+    }
+
+    protected override Task<IReadOnlyList<DependenciaCatalogo>> ContarDependenciasAsync(
+        MotivoCancelacion entidad, CancellationToken ct)
+    {
+        // No tiene dependencias foráneas (el motivo se guarda como texto en HistorialEstadoCita)
+        return Task.FromResult<IReadOnlyList<DependenciaCatalogo>>([]);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
 //  ADAPTADOR :: ESPECIALIDAD
 // ══════════════════════════════════════════════════════════════
 internal sealed class AdaptadorEspecialidad : CatalogoAdaptadorBase<Especialidad>
@@ -975,6 +1038,7 @@ public class CatalogoAdministracionServicio : IAdministracionCatalogos
             new AdaptadorDepartamento(contexto),
             new AdaptadorMunicipio(contexto),
             new AdaptadorEstadoCita(contexto),
+            new AdaptadorMotivoCancelacion(contexto),
         ];
         _adaptadores = lista.ToDictionary(a => a.Definicion.Tabla, StringComparer.OrdinalIgnoreCase);
     }

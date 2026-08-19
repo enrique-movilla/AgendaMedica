@@ -19,6 +19,7 @@ import type {
   EspecialidadDto,
   ExcepcionHorariaDto,
   HistorialEstadoDto,
+  MotivoCancelacionDto,
   PacienteDto,
   PacienteListaDto,
   ProfesionalResumenDto,
@@ -260,6 +261,7 @@ function useCatalogos() {
   const [tiposId, setTiposId] = useState<TipoIdentificacionDto[]>([])
   const [aseguradoras, setAseguradoras] = useState<AseguradoraDto[]>([])
   const [tiposUsuario, setTiposUsuario] = useState<TipoUsuarioDto[]>([])
+  const [motivosCancelacion, setMotivosCancelacion] = useState<MotivoCancelacionDto[]>([])
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
 
@@ -272,8 +274,9 @@ function useCatalogos() {
       api.tiposIdentificacion(),
       api.aseguradoras({ nombre: '' }),
       api.tiposUsuario(),
+      api.motivosCancelacion(),
     ])
-      .then(([es, se, pr, tc, ti, asko, tus]) => {
+      .then(([es, se, pr, tc, ti, asko, tus, moc]) => {
         setEspecialidades(es)
         setSedes(se)
         setProfesionales(pr)
@@ -281,6 +284,7 @@ function useCatalogos() {
         setTiposId(ti)
         setAseguradoras(asko)
         setTiposUsuario(tus)
+        setMotivosCancelacion(moc)
       })
       .catch((e) => setError(msgError(e)))
       .finally(() => setCargando(false))
@@ -294,6 +298,7 @@ function useCatalogos() {
     tiposId,
     aseguradoras,
     tiposUsuario,
+    motivosCancelacion,
     error,
     cargando,
   }
@@ -1384,6 +1389,11 @@ function PanelDetalleCita({
   const [nuevaFecha, setNuevaFecha] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [motivosCancelacion, setMotivosCancelacion] = useState<MotivoCancelacionDto[]>([])
+
+  useEffect(() => {
+    api.motivosCancelacion().then(setMotivosCancelacion).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!cita) {
@@ -1590,10 +1600,11 @@ function PanelDetalleCita({
                         className={inputCls}
                       >
                         <option value="">Seleccionar motivo…</option>
-                        <option value="Inasistencia del paciente">Inasistencia del paciente</option>
-                        <option value="Aviso del paciente">Aviso del paciente</option>
-                        <option value="Problema médico del profesional">Problema médico del profesional</option>
-                        <option value="Otro">Otro</option>
+                        {motivosCancelacion.map((m) => (
+                          <option key={m.id} value={m.nombre}>
+                            {m.nombre}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     {motivoCancelacion === 'Otro' && (

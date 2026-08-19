@@ -209,6 +209,14 @@ public class CatalogoController : ControllerBase
         return Ok(items.Select(t => t.ToDto()));
     }
 
+    [HttpGet("motivos-cancelacion")]
+    [ProducesResponseType(typeof(List<MotivoCancelacionDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> MotivosCancelacion(CancellationToken ct)
+    {
+        var items = await _uow.MotivosCancelacion.ObtenerActivosAsync(ct);
+        return Ok(items.Select(m => new MotivoCancelacionDto(m.Id, m.Nombre, m.Descripcion, m.Orden)));
+    }
+
     [HttpGet("departamentos")]
     [ProducesResponseType(typeof(List<DepartamentoDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Departamentos(CancellationToken ct)

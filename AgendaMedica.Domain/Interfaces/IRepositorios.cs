@@ -43,6 +43,7 @@ public interface IUnitOfWork : IAsyncDisposable
     IEspecialidadRepositorio       Especialidades       { get; }
     ISedeRepositorio               Sedes                { get; }
     ITipoCitaRepositorio           TiposCita            { get; }
+    IMotivoCancelacionRepositorio  MotivosCancelacion   { get; }
 
     // Catálogos compartidos (nuevos v1.1)
     IDepartamentoRepositorio       Departamentos        { get; }
@@ -205,6 +206,12 @@ public interface ITipoCitaRepositorio : IRepositorio<TipoCita>
 {
     Task<IList<TipoCita>> ObtenerActivasPorCategoriaAsync(
         string? categoria = null, CancellationToken ct = default);
+}
+
+// ── IMotivoCancelacionRepositorio ──────────────────────────────
+public interface IMotivoCancelacionRepositorio : IRepositorio<MotivoCancelacion>
+{
+    Task<IList<MotivoCancelacion>> ObtenerActivosAsync(CancellationToken ct = default);
 }
 
 // ── IDepartamentoRepositorio (NUEVO) ──────────────────────────

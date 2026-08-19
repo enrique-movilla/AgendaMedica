@@ -193,3 +193,38 @@ public class Sede : EntidadBase
 
     public void Inactivar() { Activo = false; MarcarModificado(); }
 }
+
+// ── MotivoCancelacion ─────────────────────────────────────
+/// <summary>
+/// Catálogo de motivos de cancelación de citas médicas.
+/// Ejemplos: Inasistencia del paciente, Aviso del paciente, etc.
+/// </summary>
+public class MotivoCancelacion : EntidadBase, IActivable
+{
+    public string  Nombre      { get; private set; } = string.Empty;
+    public string? Descripcion { get; private set; }
+    public short   Orden       { get; private set; } = 0;
+    public bool    Activo      { get; private set; } = true;
+
+    protected MotivoCancelacion() { }
+
+    public MotivoCancelacion(string nombre, string? descripcion = null, short orden = 0)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nombre, nameof(nombre));
+        Nombre      = nombre.Trim();
+        Descripcion = descripcion?.Trim();
+        Orden       = orden;
+    }
+
+    public void Actualizar(string nombre, string? descripcion, short orden)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nombre, nameof(nombre));
+        Nombre      = nombre.Trim();
+        Descripcion = descripcion?.Trim();
+        Orden       = orden;
+        MarcarModificado();
+    }
+
+    public void Inactivar() { Activo = false; MarcarModificado(); }
+    public void Activar()   { Activo = true;  MarcarModificado(); }
+}

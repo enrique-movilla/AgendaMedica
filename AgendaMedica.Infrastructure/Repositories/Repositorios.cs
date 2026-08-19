@@ -463,6 +463,21 @@ public class TipoCitaRepositorio : RepositorioBase<TipoCita>, ITipoCitaRepositor
     }
 }
 
+public class MotivoCancelacionRepositorio
+    : RepositorioBase<MotivoCancelacion>, IMotivoCancelacionRepositorio
+{
+    public MotivoCancelacionRepositorio(AgendaDbContext db) : base(db) { }
+
+    public async Task<IList<MotivoCancelacion>> ObtenerActivosAsync(
+        CancellationToken ct = default)
+        => await _db.MotivosCancelacion
+            .Where(m => m.Activo)
+            .OrderBy(m => m.Orden)
+            .ThenBy(m => m.Nombre)
+            .AsNoTracking()
+            .ToListAsync(ct);
+}
+
 // ══════════════════════════════════════════════════════════════
 //  DISPONIBILIDAD PROFESIONAL (plantillas horarias)
 // ══════════════════════════════════════════════════════════════

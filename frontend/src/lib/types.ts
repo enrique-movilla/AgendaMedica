@@ -397,3 +397,10 @@ export interface DependenciaCatalogo {
   descripcion: string
   conteo: number
 }
+
+export interface MotivoCancelacionDto {
+  id: number
+  nombre: string
+  descripcion: string | null
+  orden: number
+}

@@ -232,6 +232,7 @@ public class UnitOfWork : IUnitOfWork
     private IEspecialidadRepositorio?       _especialidades;
     private ISedeRepositorio?               _sedes;
     private ITipoCitaRepositorio?           _tiposCita;
+    private IMotivoCancelacionRepositorio?  _motivosCancelacion;
     private IDepartamentoRepositorio?       _departamentos;
     private IMunicipioRepositorio?          _municipios;
     private ITipoEntidadRepositorio?        _tiposEntidad;
@@ -253,6 +254,8 @@ public class UnitOfWork : IUnitOfWork
     public IEspecialidadRepositorio Especialidades => _especialidades??= new EspecialidadRepositorio(_db);
     public ISedeRepositorio         Sedes          => _sedes         ??= new SedeRepositorio(_db);
     public ITipoCitaRepositorio     TiposCita      => _tiposCita     ??= new TipoCitaRepositorio(_db);
+    public IMotivoCancelacionRepositorio MotivosCancelacion
+        => _motivosCancelacion ??= new MotivoCancelacionRepositorio(_db);
     public IDepartamentoRepositorio Departamentos  => _departamentos ??= new DepartamentoRepositorio(_db);
     public IMunicipioRepositorio    Municipios     => _municipios    ??= new MunicipioRepositorio(_db);
     public ITipoEntidadRepositorio  TiposEntidad   => _tiposEntidad  ??= new TipoEntidadRepositorio(_db);

@@ -255,4 +255,5 @@ public record MunicipioDto(
 public record EspecialidadDto(int Id, string Nombre, string? Descripcion);
 public record SedeDto(int Id, string Nombre, string? Direccion, string? Ciudad);
 public record TipoIdentificacionDto(int Id, string Codigo, string Nombre);
+public record MotivoCancelacionDto(int Id, string Nombre, string? Descripcion, short Orden);
 public record PaginadoDto<T>(List<T> Items, int Total, int Pagina, int TamPagina, int TotalPaginas);
