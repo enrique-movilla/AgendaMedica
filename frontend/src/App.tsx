@@ -244,6 +244,8 @@ function conSegundos(fh: string): string {
 }
 
 function formatFecha(iso: string): string {
+  const parts = iso.split('-')
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -523,6 +525,11 @@ function AgendaView({
   const [buscandoTurno, setBuscandoTurno] = useState(false)
   const [turnoEncontrado, setTurnoEncontrado] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (fechaInicial) setFecha(fechaInicial)
+    if (profesionalesIniciales?.length) setProfIds(profesionalesIniciales)
+  }, [fechaInicial, profesionalesIniciales])
+
   const [desde, hasta] = useMemo(() => {
     if (vista === 'semanal') {
       const lun = lunesDeLaSemana(fecha)
@@ -618,14 +625,19 @@ function AgendaView({
     setError(null)
     setTurnoEncontrado(null)
     try {
+      const esHoy = fecha === hoyISO()
+      const ahora = new Date()
+      const horaActual = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
       for (let i = 0; i <= 30; i++) {
-        const dia = sumarDias(hoyISO(), i)
+        const dia = sumarDias(fecha, i)
         for (const pid of profIds) {
           const d = await api.disponibilidad({ profesionalId: pid, fecha: dia, tipoCitaId })
-          const libre = d.slotsLibres.find((s) => s.disponible)
+          const libre = d.slotsLibres.find((s) => {
+            if (!s.disponible) return false
+            if (esHoy && i === 0 && s.horaInicio <= horaActual) return false
+            return true
+          })
           if (libre) {
-            // Llevar directo a la creación con médico, fecha y hora preseleccionados
-            // (el flujo reserva el turno y navega a la pantalla de nueva cita).
             onCrearCita?.({
               fechaHora: `${dia}T${libre.horaInicio}:00`,
               profesionalId: pid,
@@ -712,13 +724,30 @@ function AgendaView({
                 </label>
               </>
             )}
+            <div className="flex flex-col items-start gap-1">
+              <button
+                type="button"
+                onClick={buscarProximoTurno}
+                disabled={buscandoTurno || profIds.length === 0}
+                className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                {buscandoTurno ? 'Buscando…' : 'Próximo turno disponible'}
+              </button>
+              <span className="text-[11px] text-foreground/50">
+                Buscar a partir del {formatFecha(fecha)}
+                {fecha === hoyISO()
+                  ? ` desde las ${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
+                  : ' desde la mañana'}
+              </span>
+            </div>
             <button
               type="button"
-              onClick={buscarProximoTurno}
-              disabled={buscandoTurno || profIds.length === 0}
-              className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+              onClick={() => setRefresh((x) => x + 1)}
+              disabled={cargando}
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground/70 transition-colors hover:bg-muted disabled:opacity-50"
+              title="Actualizar datos de la agenda"
             >
-              {buscandoTurno ? 'Buscando…' : 'Próximo turno disponible'}
+              ↻ Actualizar
             </button>
           </div>
         </div>
@@ -1350,6 +1379,8 @@ function PanelDetalleCita({
   const [cargando, setCargando] = useState(false)
   const [accion, setAccion] = useState<'confirmar' | 'iniciar' | 'realizar' | 'noasistio' | 'reprogramar' | 'cancelar' | null>(null)
   const [motivo, setMotivo] = useState('')
+  const [motivoCancelacion, setMotivoCancelacion] = useState('')
+  const [motivoOtro, setMotivoOtro] = useState('')
   const [nuevaFecha, setNuevaFecha] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1390,12 +1421,15 @@ function PanelDetalleCita({
     setEnviando(true)
     setError(null)
     try {
-      if (accion === 'cancelar' && !motivo.trim()) {
-        setError('La cancelación requiere un motivo.')
-        setEnviando(false)
-        return
-      }
-      if (accion === 'reprogramar') {
+      if (accion === 'cancelar') {
+        const motivoFinal = motivoCancelacion === 'Otro' ? motivoOtro.trim() : motivoCancelacion
+        if (!motivoFinal) {
+          setError('La cancelación requiere un motivo.')
+          setEnviando(false)
+          return
+        }
+        await api.cancelarCita(detalle.id, { motivo: motivoFinal })
+      } else if (accion === 'reprogramar') {
         if (!nuevaFecha) {
           setError('Seleccione la nueva fecha y hora.')
           setEnviando(false)
@@ -1405,8 +1439,6 @@ function PanelDetalleCita({
           nuevaFechaHora: conSegundos(nuevaFecha),
           motivo: motivo || null,
         })
-      } else if (accion === 'cancelar') {
-        await api.cancelarCita(detalle.id, { motivo: motivo.trim() })
       } else if (accion) {
         await api.cambiarEstadoCita(detalle.id, {
           nuevoEstadoId: {
@@ -1419,6 +1451,8 @@ function PanelDetalleCita({
         })
       }
       setMotivo('')
+      setMotivoCancelacion('')
+      setMotivoOtro('')
       setAccion(null)
       onChange()
       const c = await api.cita(detalle.id)
@@ -1513,13 +1547,13 @@ function PanelDetalleCita({
                   Reprogramar
                 </button>
               )}
-              {[1, 2, 3, 7].includes(cita.estadoId) && (
+               {[1, 2, 3, 7].includes(cita.estadoId) && (
                 <button
                   type="button"
                   onClick={() => setAccion('cancelar')}
                   className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50"
                 >
-                  Cancelar
+                  Cancelar Cita
                 </button>
               )}
             </div>
@@ -1543,15 +1577,48 @@ function PanelDetalleCita({
                     />
                   </label>
                 )}
-                {(accion === 'cancelar' || accion === 'reprogramar') && (
+                {accion === 'cancelar' && (
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium">
+                      Motivo de cancelación *
+                      <select
+                        value={motivoCancelacion}
+                        onChange={(e) => {
+                          setMotivoCancelacion(e.target.value)
+                          setMotivoOtro('')
+                        }}
+                        className={inputCls}
+                      >
+                        <option value="">Seleccionar motivo…</option>
+                        <option value="Inasistencia del paciente">Inasistencia del paciente</option>
+                        <option value="Aviso del paciente">Aviso del paciente</option>
+                        <option value="Problema médico del profesional">Problema médico del profesional</option>
+                        <option value="Otro">Otro</option>
+                      </select>
+                    </label>
+                    {motivoCancelacion === 'Otro' && (
+                      <label className="mt-2 block text-sm font-medium">
+                        Especifique el motivo *
+                        <textarea
+                          value={motivoOtro}
+                          onChange={(e) => setMotivoOtro(e.target.value)}
+                          className={inputCls}
+                          rows={2}
+                          placeholder="Describa el motivo de la cancelación"
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
+                {accion === 'reprogramar' && (
                   <label className="mt-2 block text-sm font-medium">
-                    Motivo
+                    Motivo (opcional)
                     <input
                       type="text"
                       value={motivo}
                       onChange={(e) => setMotivo(e.target.value)}
                       className={inputCls}
-                      placeholder="Obligatorio para cancelar / opcional para reprogramar"
+                      placeholder="Motivo de la reprogramación"
                     />
                   </label>
                 )}
@@ -1574,6 +1641,8 @@ function PanelDetalleCita({
                       setAccion(null)
                       setError(null)
                       setMotivo('')
+                      setMotivoCancelacion('')
+                      setMotivoOtro('')
                     }}
                     className="rounded-md border border-border px-4 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-muted"
                   >
@@ -1652,6 +1721,7 @@ function NuevaCitaView({
   const [enviando, setEnviando] = useState(false)
   const [resultado, setResultado] = useState<CitaDto | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [camposModificados, setCamposModificados] = useState(false)
 
   useEffect(() => {
     if (docBusqueda.trim().length < configBusqueda.minimoCampo('citas', 'nombre')) {
@@ -1677,7 +1747,7 @@ function NuevaCitaView({
     }
     setEnviando(true)
     try {
-      const creada = await api.crearCita({
+      const crearcitaPayload = {
         fechaHora: conSegundos(fechaHora),
         pacienteId,
         profesionalId: profId,
@@ -1686,8 +1756,9 @@ function NuevaCitaView({
         tipoUsuarioId: tipoUsuarioId ?? undefined,
         motivoConsulta: motivo || null,
         observaciones: observaciones || null,
-        bloqueoId: hint?.bloqueoId ?? null,
-      })
+        bloqueoId: camposModificados ? null : (hint?.bloqueoId ?? null),
+      }
+      const creada = await api.crearCita(crearcitaPayload)
       setResultado(creada)
     } catch (e) {
       setError(msgError(e))
@@ -1759,7 +1830,11 @@ function NuevaCitaView({
             Profesional
             <select
               value={profId ?? ''}
-              onChange={(e) => setProfId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => {
+                const nuevoProfId = e.target.value ? Number(e.target.value) : null
+                if (nuevoProfId !== profId) setCamposModificados(true)
+                setProfId(nuevoProfId)
+              }}
               className={inputCls}
             >
               <option value="">Seleccione…</option>
@@ -1790,7 +1865,10 @@ function NuevaCitaView({
             <input
               type="datetime-local"
               value={fechaHora}
-              onChange={(e) => setFechaHora(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value !== fechaHora) setCamposModificados(true)
+                setFechaHora(e.target.value)
+              }}
               className={inputCls}
             />
           </label>
