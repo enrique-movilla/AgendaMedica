@@ -206,6 +206,156 @@ function ModalError({ msg, onCerrar }: { msg: string; onCerrar: () => void }) {
   )
 }
 
+/** Modal de cancelación de cita: motivo + confirmación, cierra con ESC/Cancelar. */
+function ModalCancelarCita({
+  citaId,
+  motivos,
+  onCancelar,
+  onExito,
+}: {
+  citaId: number
+  motivos: MotivoCancelacionDto[]
+  onCancelar: () => void
+  onExito: () => void
+}) {
+  const botonRef = useRef<HTMLButtonElement | null>(null)
+  const [motivoSeleccion, setMotivoSeleccion] = useState('')
+  const [motivoOtro, setMotivoOtro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [exito, setExito] = useState(false)
+
+  useEffect(() => {
+    botonRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        if (!enviando) onCancelar()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancelar, enviando])
+
+  async function confirmar(): Promise<void> {
+    const motivoFinal = motivoSeleccion === 'Otro' ? motivoOtro.trim() : motivoSeleccion
+    if (!motivoFinal) {
+      setError('La cancelación requiere un motivo.')
+      return
+    }
+    setEnviando(true)
+    setError(null)
+    try {
+      await api.cancelarCita(citaId, { motivo: motivoFinal })
+      setExito(true)
+    } catch (e) {
+      setError(msgError(e))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  if (exito) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onExito}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Cita cancelada"
+          className="w-full max-w-md rounded-xl border border-border bg-white p-6 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Cita cancelada</p>
+          <p className="mt-3 text-sm text-foreground/70">La cita fue cancelada exitosamente.</p>
+          <button
+            type="button"
+            onClick={onExito}
+            className="mt-5 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
+          >
+            OK
+          </button>
+          <p className="mt-2 text-center text-[11px] text-foreground/50">Enter o clic para cerrar</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={() => { if (!enviando) onCancelar() }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Cancelar cita"
+        className="w-full max-w-md rounded-xl border border-border bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-sm font-semibold uppercase tracking-wide text-rose-700">Cancelar cita</p>
+        <p className="mt-1 text-xs text-foreground/50">Cita #{citaId}</p>
+
+        {error && (
+          <div className="mt-3">
+            <Aviso msg={error} />
+          </div>
+        )}
+
+        <div className="mt-4 space-y-3">
+          <label className="block text-sm font-medium">
+            Motivo de cancelación *
+            <select
+              value={motivoSeleccion}
+              onChange={(e) => { setMotivoSeleccion(e.target.value); setMotivoOtro('') }}
+              className={inputCls}
+              disabled={enviando}
+            >
+              <option value="">Seleccionar motivo…</option>
+              {motivos.map((m) => (
+                <option key={m.id} value={m.nombre}>{m.nombre}</option>
+              ))}
+            </select>
+          </label>
+          {motivoSeleccion === 'Otro' && (
+            <label className="block text-sm font-medium">
+              Especifique el motivo *
+              <textarea
+                value={motivoOtro}
+                onChange={(e) => setMotivoOtro(e.target.value)}
+                className={inputCls}
+                rows={2}
+                placeholder="Describa el motivo de la cancelación"
+                disabled={enviando}
+              />
+            </label>
+          )}
+        </div>
+
+        <div className="mt-5 flex gap-2">
+          <button
+            ref={botonRef}
+            type="button"
+            onClick={confirmar}
+            disabled={enviando}
+            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+          >
+            {enviando ? 'Cancelando…' : 'Confirmar cancelación'}
+          </button>
+          <button
+            type="button"
+            onClick={onCancelar}
+            disabled={enviando}
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground/70 hover:bg-muted disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+        </div>
+        <p className="mt-2 text-center text-[11px] text-foreground/50">ESC para cerrar</p>
+      </div>
+    </div>
+  )
+}
+
 const inputCls =
   'mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
 
@@ -1482,212 +1632,201 @@ function PanelDetalleCita({
   if ([3].includes(cita.estadoId)) acciones.push({ id: 'realizar', label: 'Marcar realizada' })
 
   return (
-    <div className="sticky top-4 rounded-lg border border-border bg-white p-5">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">Cita #{cita.citaId}</h2>
-          <span className={`mt-1 inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(cita.estadoId)}`}>
-            {cita.estado}
-          </span>
+    <div className="sticky top-4">
+      {/* Acciones del ciclo de vida — fuera del cuadro de detalle */}
+      <div className="mb-3 rounded-lg border border-border bg-white p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">Acciones</p>
+        <div className="flex flex-wrap gap-2">
+          {acciones.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => setAccion(a.id)}
+              className="rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+            >
+              {a.label}
+            </button>
+          ))}
+          {[1, 2, 7].includes(cita.estadoId) && (
+            <button
+              type="button"
+              onClick={() => setAccion('reprogramar')}
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-muted"
+            >
+              Reprogramar
+            </button>
+          )}
+          {[1, 2, 3, 7].includes(cita.estadoId) && (
+            <button
+              type="button"
+              onClick={() => setAccion('cancelar')}
+              className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+            >
+              Cancelar Cita
+            </button>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={onCerrar}
-          aria-label="Cerrar"
-          className="rounded-md border border-border px-2 py-0.5 text-sm hover:bg-muted"
-        >
-          ✕
-        </button>
+
+        {accion && accion !== 'cancelar' && (
+          <form
+            className="mt-3 rounded-md border border-border bg-muted/40 p-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void ejecutarAccion()
+            }}
+          >
+            {accion === 'reprogramar' && (
+              <label className="block text-sm font-medium">
+                Nueva fecha y hora
+                <input
+                  type="datetime-local"
+                  value={nuevaFecha}
+                  onChange={(e) => setNuevaFecha(e.target.value)}
+                  className={inputCls}
+                />
+              </label>
+            )}
+            {accion === 'reprogramar' && (
+              <label className="mt-2 block text-sm font-medium">
+                Motivo (opcional)
+                <input
+                  type="text"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  className={inputCls}
+                  placeholder="Motivo de la reprogramación"
+                />
+              </label>
+            )}
+            {accion === 'noasistio' && (
+              <p className="text-xs text-foreground/60">
+                Se marcará la cita como no asistió.
+              </p>
+            )}
+            <div className="mt-3 flex gap-2">
+              <button
+                type="submit"
+                disabled={enviando}
+                className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+              >
+                {enviando ? 'Guardando…' : 'Confirmar acción'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAccion(null)
+                  setError(null)
+                  setMotivo('')
+                  setMotivoCancelacion('')
+                  setMotivoOtro('')
+                }}
+                className="rounded-md border border-border px-4 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-muted"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
-      {error && (
-        <div className="mb-3">
-          <Aviso msg={error} />
+      {/* Cuadro de detalle de la cita */}
+      <div className="rounded-lg border border-border bg-white p-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Cita #{cita.citaId}</h2>
+            <span className={`mt-1 inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(cita.estadoId)}`}>
+              {cita.estado}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onCerrar}
+            aria-label="Cerrar"
+            className="rounded-md border border-border px-2 py-0.5 text-sm hover:bg-muted"
+          >
+            ✕
+          </button>
         </div>
-      )}
 
-      {cargando || !detalle ? (
-        <Spinner texto="Cargando detalle…" />
-      ) : (
-        <>
-          <dl className="space-y-2 text-sm">
-            <FilaDetalle k="Fecha" v={`${formatFecha(cita.fecha)} · ${cita.horaInicio}–${cita.horaFin}`} />
-            <FilaDetalle k="Paciente" v={`${cita.paciente} (${cita.identificacion})`} />
-            <FilaDetalle k="Edad" v={`${cita.edadPaciente} años · ${cita.sexo === 'M' ? 'M' : 'F'}`} />
-            <FilaDetalle k="Profesional" v={`${cita.profesionalNombre}${cita.especialidad ? ` · ${cita.especialidad}` : ''}`} />
-            <FilaDetalle k="Tipo de cita" v={`${cita.tipoCita} · ${cita.duracionMinutos} min`} />
-            <FilaDetalle k="Aseguradora" v={cita.aseguradora ?? '—'} />
-            <FilaDetalle k="Régimen" v={cita.regimen ?? '—'} />
-            <FilaDetalle k="Motivo" v={cita.motivoConsulta ?? '—'} />
-            <FilaDetalle k="Observaciones" v={detalle.observaciones ?? '—'} />
-            {detalle.teamsJoinUrl && (
-              <div className="pt-1">
-                <a
-                  href={detalle.teamsJoinUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Unirse a Teams →
-                </a>
-              </div>
-            )}
-          </dl>
+        {error && (
+          <div className="mb-3">
+            <Aviso msg={error} />
+          </div>
+        )}
 
-          {/* Acciones del ciclo de vida */}
-          <div className="mt-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">Acciones</p>
-            <div className="flex flex-wrap gap-2">
-              {acciones.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => setAccion(a.id)}
-                  className="rounded-md border border-primary px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
-                >
-                  {a.label}
-                </button>
-              ))}
-              {[1, 2, 7].includes(cita.estadoId) && (
-                <button
-                  type="button"
-                  onClick={() => setAccion('reprogramar')}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-muted"
-                >
-                  Reprogramar
-                </button>
+        {cargando || !detalle ? (
+          <Spinner texto="Cargando detalle…" />
+        ) : (
+          <>
+            <dl className="space-y-2 text-sm">
+              <FilaDetalle k="Fecha" v={`${formatFecha(cita.fecha)} · ${cita.horaInicio}–${cita.horaFin}`} />
+              <FilaDetalle k="Paciente" v={`${cita.paciente} (${cita.identificacion})`} />
+              <FilaDetalle k="Edad" v={`${cita.edadPaciente} años · ${cita.sexo === 'M' ? 'M' : 'F'}`} />
+              <FilaDetalle k="Profesional" v={`${cita.profesionalNombre}${cita.especialidad ? ` · ${cita.especialidad}` : ''}`} />
+              <FilaDetalle k="Tipo de cita" v={`${cita.tipoCita} · ${cita.duracionMinutos} min`} />
+              <FilaDetalle k="Aseguradora" v={cita.aseguradora ?? '—'} />
+              <FilaDetalle k="Régimen" v={cita.regimen ?? '—'} />
+              <FilaDetalle k="Motivo" v={cita.motivoConsulta ?? '—'} />
+              <FilaDetalle k="Observaciones" v={detalle.observaciones ?? '—'} />
+              {detalle.teamsJoinUrl && (
+                <div className="pt-1">
+                  <a
+                    href={detalle.teamsJoinUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    Unirse a Teams →
+                  </a>
+                </div>
               )}
-               {[1, 2, 3, 7].includes(cita.estadoId) && (
-                <button
-                  type="button"
-                  onClick={() => setAccion('cancelar')}
-                  className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                >
-                  Cancelar Cita
-                </button>
+            </dl>
+
+            {/* Historial */}
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">Historial ({historial.length})</p>
+              {historial.length === 0 ? (
+                <p className="text-sm text-foreground/50">Sin cambios registrados.</p>
+              ) : (
+                <ul className="relative space-y-3 pl-4">
+                  {historial.map((h) => (
+                    <li key={h.id} className="relative border-l border-border pl-3">
+                      <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-primary" />
+                      <p className="text-xs">
+                        <span className="font-semibold">{h.estadoNuevo}</span>
+                        {h.estadoAnterior && <span className="text-foreground/50"> (desde {h.estadoAnterior})</span>}
+                      </p>
+                      <p className="text-[11px] text-foreground/50">
+                        {formatFechaHora(h.fechaCambio)} · {h.cambiadoPor} · {h.origen}
+                      </p>
+                      {h.motivo && <p className="text-[11px] text-foreground/60">«{h.motivo}»</p>}
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
+          </>
+        )}
+      </div>
 
-            {accion && (
-              <form
-                className="mt-3 rounded-md border border-border bg-muted/40 p-3"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void ejecutarAccion()
-                }}
-              >
-                {accion === 'reprogramar' && (
-                  <label className="block text-sm font-medium">
-                    Nueva fecha y hora
-                    <input
-                      type="datetime-local"
-                      value={nuevaFecha}
-                      onChange={(e) => setNuevaFecha(e.target.value)}
-                      className={inputCls}
-                    />
-                  </label>
-                )}
-                {accion === 'cancelar' && (
-                  <div className="mt-2">
-                    <label className="block text-sm font-medium">
-                      Motivo de cancelación *
-                      <select
-                        value={motivoCancelacion}
-                        onChange={(e) => {
-                          setMotivoCancelacion(e.target.value)
-                          setMotivoOtro('')
-                        }}
-                        className={inputCls}
-                      >
-                        <option value="">Seleccionar motivo…</option>
-                        {motivosCancelacion.map((m) => (
-                          <option key={m.id} value={m.nombre}>
-                            {m.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {motivoCancelacion === 'Otro' && (
-                      <label className="mt-2 block text-sm font-medium">
-                        Especifique el motivo *
-                        <textarea
-                          value={motivoOtro}
-                          onChange={(e) => setMotivoOtro(e.target.value)}
-                          className={inputCls}
-                          rows={2}
-                          placeholder="Describa el motivo de la cancelación"
-                        />
-                      </label>
-                    )}
-                  </div>
-                )}
-                {accion === 'reprogramar' && (
-                  <label className="mt-2 block text-sm font-medium">
-                    Motivo (opcional)
-                    <input
-                      type="text"
-                      value={motivo}
-                      onChange={(e) => setMotivo(e.target.value)}
-                      className={inputCls}
-                      placeholder="Motivo de la reprogramación"
-                    />
-                  </label>
-                )}
-                {accion === 'noasistio' && (
-                  <p className="text-xs text-foreground/60">
-                    Se marcará la cita como no asistió.
-                  </p>
-                )}
-                <div className="mt-3 flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={enviando}
-                    className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
-                  >
-                    {enviando ? 'Guardando…' : 'Confirmar acción'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAccion(null)
-                      setError(null)
-                      setMotivo('')
-                      setMotivoCancelacion('')
-                      setMotivoOtro('')
-                    }}
-                    className="rounded-md border border-border px-4 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-muted"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-
-          {/* Historial */}
-          <div className="mt-5 border-t border-border pt-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">Historial ({historial.length})</p>
-            {historial.length === 0 ? (
-              <p className="text-sm text-foreground/50">Sin cambios registrados.</p>
-            ) : (
-              <ul className="relative space-y-3 pl-4">
-                {historial.map((h) => (
-                  <li key={h.id} className="relative border-l border-border pl-3">
-                    <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-primary" />
-                    <p className="text-xs">
-                      <span className="font-semibold">{h.estadoNuevo}</span>
-                      {h.estadoAnterior && <span className="text-foreground/50"> (desde {h.estadoAnterior})</span>}
-                    </p>
-                    <p className="text-[11px] text-foreground/50">
-                      {formatFechaHora(h.fechaCambio)} · {h.cambiadoPor} · {h.origen}
-                    </p>
-                    {h.motivo && <p className="text-[11px] text-foreground/60">«{h.motivo}»</p>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
+      {/* Modal de cancelación */}
+      {accion === 'cancelar' && detalle && (
+        <ModalCancelarCita
+          citaId={detalle.id}
+          motivos={motivosCancelacion}
+          onCancelar={() => { setAccion(null); setError(null); setMotivoCancelacion(''); setMotivoOtro('') }}
+          onExito={() => {
+            setAccion(null)
+            setMotivoCancelacion('')
+            setMotivoOtro('')
+            setError(null)
+            onChange()
+            void api.cita(detalle.id).then((c) => {
+              setDetalle(c)
+              return api.historialCita(c.id)
+            }).then(setHistorial)
+          }}
+        />
       )}
     </div>
   )
