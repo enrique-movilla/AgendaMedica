@@ -42,10 +42,9 @@ Solución .NET 8 para la gestión de citas médicas. Todo el código (identifica
 
 ## Punto de reanudo (Estado de la sesión)
 
-- Rama `feature/ui-ux`, todo pusheado a `origin` (repo `https://github.com/enrique-movilla/AgendaMedica`). Últimos commits: `11da250` (bloqueos de agenda + excepciones horarias, Fase 3), `dcb0420` (bloquear profesional al editar horarios).
+- Rama `feature/ui-ux`, todo pusheado a `origin` (repo `https://github.com/enrique-movilla/AgendaMedica`). Últimos commits: `c82ce8f` (iniciar atención 'en desarrollo', modales con createPortal, botones arriba del detalle), `911824f` (modal de cancelación con createPortal), `7b30b0b` (botones arriba + modal cancelación), `a99ae5c` (catálogo MotivoCancelacion).
 - **Producción desplegada**: frontend `https://agenda-medica-lime.vercel.app` (Vercel, root dir `frontend`, desplegar desde la raíz con `npx.cmd vercel --prod --yes`) y API `https://emovilla-001-site1.jtempurl.com` (SmarterASP, `site1/` por FTP `ftp://win8229.site4now.net/` user `emovilla-001` pass `RNsPV-5gB`; para re-desplegar, subir los DLL del publish y, si un archivo da 550 por estar bloqueado por el app pool, tocar `web.config` para forzar recycle y reintentar).
 - **Fase 3 casi completa**: items 10 (bloqueo preventivo), 11 (drag & drop) y la ampliación "bloqueos de agenda + excepciones horarias" (nuevas entidades `BloqueoAgenda`/`ExcepcionHoraria`, tablas en Supabase vía DDL idempotente + migración `20260811120000_AgregarBloqueosYExcepciones`, endpoints `v1/BloqueosAgenda` y `v1/ExcepcionesHorarias`, integradas en `GenerarSlotsLibres` de `Queries.cs`) están hechos y desplegados.
-- **SIGUIENTE (Fase 3, pendiente) — ver `Contexto_Agenda_UIUX.md` §3 item 12**:
-  1. **Item 12 — Reasignación en bloque y lista de espera de reprogramación** (G16). Diseñar flujo: selección múltiple de citas + reprogramar juntas; lista de espera para reprogramación.
+- **SIGUIENTE: FASE 4** (ver `Contexto_Agenda_UIUX.md`): ver qué incluye la fase 4.
 - **Item 13 completado**: catálogo `MotivoCancelacion` en BD + API + UI (select dinámico desde `/v1/catalogo/motivos-cancelacion`). Citar cancelación funciona con categorías de BD.
 - Pendientes menores de UI (no bloqueados): menú contextual de 3 puntos en la timeline (item 8 de Fase 2), filtros por estado (item 7).
