@@ -1543,6 +1543,7 @@ function PanelDetalleCita({
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [motivosCancelacion, setMotivosCancelacion] = useState<MotivoCancelacionDto[]>([])
+  const [enDesarrollo, setEnDesarrollo] = useState(false)
 
   useEffect(() => {
     api.motivosCancelacion().then(setMotivosCancelacion).catch(() => {})
@@ -1581,6 +1582,12 @@ function PanelDetalleCita({
 
   async function ejecutarAccion(): Promise<void> {
     if (!detalle) return
+    if (accion === 'iniciar') {
+      setAccion(null)
+      setEnDesarrollo(true)
+      onChange()
+      return
+    }
     setEnviando(true)
     setError(null)
     try {
@@ -1636,6 +1643,18 @@ function PanelDetalleCita({
 
   return (
     <div className="sticky top-4">
+      {enDesarrollo && (
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-center">
+          <p className="text-sm font-semibold text-amber-800">Esta funcionalidad está en desarrollo.</p>
+          <button
+            type="button"
+            onClick={() => { setEnDesarrollo(false); onCerrar() }}
+            className="mt-3 rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white hover:bg-primary/90"
+          >
+            Volver a la agenda
+          </button>
+        </div>
+      )}
       {/* Acciones del ciclo de vida — fuera del cuadro de detalle */}
       <div className="mb-3 rounded-lg border border-border bg-white p-3">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">Acciones</p>
@@ -1670,7 +1689,7 @@ function PanelDetalleCita({
           )}
         </div>
 
-        {accion && accion !== 'cancelar' && (
+        {accion && accion !== 'cancelar' && accion !== 'iniciar' && (
           <form
             className="mt-3 rounded-md border border-border bg-muted/40 p-3"
             onSubmit={(e) => {
