@@ -238,6 +238,7 @@ public class UnitOfWork : IUnitOfWork
     private ITipoEntidadRepositorio?        _tiposEntidad;
     private ITipoUsuarioRepositorio?        _tiposUsuario;
     private ITipoIdentificacionRepositorio? _tiposIdentificacion;
+    private ICatalogoTerminoRepositorio?  _catalogoTerminos;
 
     public UnitOfWork(AgendaDbContext db) => _db = db;
 
@@ -262,6 +263,9 @@ public class UnitOfWork : IUnitOfWork
     public ITipoUsuarioRepositorio  TiposUsuario   => _tiposUsuario  ??= new TipoUsuarioRepositorio(_db);
     public ITipoIdentificacionRepositorio TiposIdentificacion
         => _tiposIdentificacion ??= new TipoIdentificacionRepositorio(_db);
+
+    public ICatalogoTerminoRepositorio CatalogoTerminos
+        => _catalogoTerminos ??= new CatalogoTerminoRepositorio(_db);
 
     public async Task<int> GuardarAsync(CancellationToken ct = default)
         => await _db.SaveChangesAsync(ct);

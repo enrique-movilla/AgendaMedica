@@ -5,6 +5,8 @@
 // ============================================================
 
 using AgendaMedica.Application.DTOs;
+using AgendaMedica.Domain.Entities;
+using AgendaMedica.Domain.Enums;
 using AgendaMedica.Domain.Exceptions;
 using AgendaMedica.Domain.Interfaces;
 using MediatR;
@@ -466,5 +468,61 @@ public class BuscarPacientesHandler
             TamPagina: request.TamPagina,
             TotalPaginas: totalPaginas
         );
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CATÁLOGO DE TÉRMINOS PARAMÉTRICOS POR TENANT Y VERTICAL
+// ══════════════════════════════════════════════════════════════
+public record ObtenerCatalogoTerminosQuery(int TenantId, string Vertical)
+    : IRequest<List<CatalogoTerminoDto>>;
+
+public class ObtenerCatalogoTerminosHandler
+    : IRequestHandler<ObtenerCatalogoTerminosQuery, List<CatalogoTerminoDto>>
+{
+    private readonly IUnitOfWork _uow;
+    public ObtenerCatalogoTerminosHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<List<CatalogoTerminoDto>> Handle(
+        ObtenerCatalogoTerminosQuery request, CancellationToken ct)
+    {
+        var terminos = await _uow.CatalogoTerminos.ObtenerPorTenantAsync(request.TenantId, request.Vertical, ct);
+        return terminos.Select(t => t.ToDto()).ToList();
+    }
+}
+
+public record ObtenerTerminoQuery(int TenantId, string Vertical, ClaveTermino Clave)
+    : IRequest<CatalogoTerminoDto?>;
+
+public class ObtenerTerminoHandler
+    : IRequestHandler<ObtenerTerminoQuery, CatalogoTerminoDto?>
+{
+    private readonly IUnitOfWork _uow;
+    public ObtenerTerminoHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<CatalogoTerminoDto?> Handle(
+        ObtenerTerminoQuery request, CancellationToken ct)
+    {
+        var termino = await _uow.CatalogoTerminos.ObtenerPorTenantVerticalYClaveAsync(
+            request.TenantId, request.Vertical, request.Clave, ct);
+        return termino?.ToDto();
+    }
+}
+
+public record ObtenerTerminosPorCategoriaQuery(int TenantId, string Vertical, string Categoria)
+    : IRequest<List<CatalogoTerminoDto>>;
+
+public class ObtenerTerminosPorCategoriaHandler
+    : IRequestHandler<ObtenerTerminosPorCategoriaQuery, List<CatalogoTerminoDto>>
+{
+    private readonly IUnitOfWork _uow;
+    public ObtenerTerminosPorCategoriaHandler(IUnitOfWork uow) => _uow = uow;
+
+    public async Task<List<CatalogoTerminoDto>> Handle(
+        ObtenerTerminosPorCategoriaQuery request, CancellationToken ct)
+    {
+        var terminos = await _uow.CatalogoTerminos.ObtenerPorCategoriaAsync(
+            request.TenantId, request.Vertical, request.Categoria, ct);
+        return terminos.Select(t => t.ToDto()).ToList();
     }
 }

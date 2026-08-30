@@ -225,4 +225,14 @@ SedeId:             d.SedeId,
         HoraFin:            e.HoraFin.ToString(@"hh\:mm"),
         Activo:             e.Activo
     );
+
+    // ── CatalogoTermino → CatalogoTerminoDto ──
+    public static CatalogoTerminoDto ToDto(this CatalogoTermino t) => new(
+        Id:         t.Id,
+        TenantId:   t.TenantId,
+        Clave:      t.Clave,
+        Valor:      t.Valor,
+        Categoria:  t.Categoria,
+        Activo:     t.Activo
+    );
 }

@@ -2,12 +2,15 @@ import type {
   ActualizarDisponibilidadRequest,
   ActualizarPacienteRequest,
   ActualizarProfesionalRequest,
+  ActualizarTerminoRequest,
   AgendaDiaItemDto,
   AseguradoraDto,
   BloqueoAgendaDto,
   CatalogoDefinicion,
   CatalogoFila,
+  CatalogoTerminoDto,
   CitaDto,
+  ClaveTermino,
   ConfiguracionBusquedaCampo,
   CrearBloqueoAgendaRequest,
   CrearCitaRequest,
@@ -15,6 +18,7 @@ import type {
   CrearExcepcionHorariaRequest,
   CrearPacienteRequest,
   CrearProfesionalRequest,
+  CrearTerminoRequest,
   DependenciaCatalogo,
   DisponibilidadDto,
   DisponibilidadProfesionalDto,
@@ -28,6 +32,7 @@ import type {
   ResultadoCatalogo,
   ResultadoReservaBloqueo,
   SedeDto,
+  SeedCatalogoRequest,
   TipoCitaDto,
   TipoIdentificacionDto,
   TipoUsuarioDto,
@@ -135,6 +140,36 @@ export const api = {
   departamentos: () => request<DepartamentoDto[]>('/v1/catalogo/departamentos'),
   municipios: (params: { codigoDepartamento?: string; nombre?: string }) =>
     request<MunicipioDto[]>(`/v1/catalogo/municipios${toQuery(params)}`),
+
+  // ── Catálogo de Términos Paramétricos por Tenant ─────────────
+  catalogoTerminos: (tenantId: number, vertical: string = 'default') =>
+    request<CatalogoTerminoDto[]>(`/v1/tenant/${tenantId}/catalogo${toQuery({ vertical })}`),
+  catalogoTermino: (tenantId: number, clave: ClaveTermino, vertical: string = 'default') =>
+    request<CatalogoTerminoDto | null>(`/v1/tenant/${tenantId}/catalogo/${clave}${toQuery({ vertical })}`),
+  catalogoTerminosPorCategoria: (tenantId: number, categoria: string, vertical: string = 'default') =>
+    request<CatalogoTerminoDto[]>(`/v1/tenant/${tenantId}/catalogo/categoria/${categoria}${toQuery({ vertical })}`),
+  crearTermino: (tenantId: number, payload: CrearTerminoRequest) =>
+    request<CatalogoTerminoDto>(`/v1/tenant/${tenantId}/catalogo${toQuery({ vertical: payload.vertical })}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  actualizarTermino: (tenantId: number, clave: ClaveTermino, vertical: string, payload: ActualizarTerminoRequest) =>
+    request<CatalogoTerminoDto>(`/v1/tenant/${tenantId}/catalogo/${clave}${toQuery({ vertical })}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  inactivarTermino: (tenantId: number, clave: ClaveTermino, vertical: string = 'default') =>
+    request<void>(`/v1/tenant/${tenantId}/catalogo/${clave}${toQuery({ vertical })}`, { method: 'DELETE' }),
+  seedCatalogo: (tenantId: number, payload: SeedCatalogoRequest) =>
+    request<{ tenantId: number; vertical: string; terminosCreados: number }>(
+      `/v1/tenant/${tenantId}/catalogo/seed`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+  seedAllCatalogo: (tenantId: number) =>
+    request<{ tenantId: number; vertical: string; terminosCreados: number }>(
+      `/v1/tenant/${tenantId}/catalogo/seed-all`,
+      { method: 'POST' },
+    ),
 
   // ── Configuración de búsqueda ──
   configBusqueda: () => request<ConfiguracionBusquedaCampo[]>('/v1/config/busqueda'),

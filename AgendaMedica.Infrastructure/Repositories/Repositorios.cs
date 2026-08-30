@@ -19,6 +19,33 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AgendaMedica.Infrastructure.Repositories;
 
+// ── CatalogoTerminoRepositorio ────────────────────────────────────
+public class CatalogoTerminoRepositorio
+    : RepositorioBase<CatalogoTermino>, ICatalogoTerminoRepositorio
+{
+    public CatalogoTerminoRepositorio(AgendaDbContext db) : base(db) { }
+
+    public async Task<IList<CatalogoTermino>> ObtenerPorTenantAsync(int tenantId, string vertical, CancellationToken ct = default)
+        => await _db.CatalogoTerminos
+            .Where(t => t.TenantId == tenantId && t.Vertical == vertical && t.Activo)
+            .OrderBy(t => t.Categoria)
+            .ThenBy(t => t.Clave)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+    public async Task<CatalogoTermino?> ObtenerPorTenantVerticalYClaveAsync(int tenantId, string vertical, ClaveTermino clave, CancellationToken ct = default)
+        => await _db.CatalogoTerminos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.TenantId == tenantId && t.Vertical == vertical && t.Clave == clave && t.Activo, ct);
+
+    public async Task<IList<CatalogoTermino>> ObtenerPorCategoriaAsync(int tenantId, string vertical, string categoria, CancellationToken ct = default)
+        => await _db.CatalogoTerminos
+            .Where(t => t.TenantId == tenantId && t.Vertical == vertical && t.Categoria == categoria && t.Activo)
+            .OrderBy(t => t.Clave)
+            .AsNoTracking()
+            .ToListAsync(ct);
+}
+
 // ══════════════════════════════════════════════════════════════
 //  CITA REPOSITORIO
 // ══════════════════════════════════════════════════════════════

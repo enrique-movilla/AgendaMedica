@@ -10,6 +10,8 @@
 
 namespace AgendaMedica.Domain.Entities;
 
+using AgendaMedica.Domain.Enums;
+
 // ── TipoIdentificacion ────────────────────────────────────────
 /// <summary>
 /// Catálogo de tipos de documento de identidad.
@@ -222,6 +224,49 @@ public class MotivoCancelacion : EntidadBase, IActivable
         Nombre      = nombre.Trim();
         Descripcion = descripcion?.Trim();
         Orden       = orden;
+        MarcarModificado();
+    }
+
+    public void Inactivar() { Activo = false; MarcarModificado(); }
+    public void Activar()   { Activo = true;  MarcarModificado(); }
+}
+
+// ── CatalogoTermino ───────────────────────────────────────────
+/// <summary>
+/// Término paramétrico por tenant y vertical.
+/// Cada tenant define sus propios valores para las claves de <see cref="Enums.ClaveTermino"/> por cada vertical (salud, belleza, servicios, taller, default).
+/// </summary>
+public class CatalogoTermino : EntidadBase
+{
+    public int           TenantId    { get; private set; }
+    public string        Vertical    { get; private set; } = "default"; // "default", "salud", "belleza", "servicios", "taller"
+    public ClaveTermino  Clave       { get; private set; }
+    public string        Valor       { get; private set; } = string.Empty;
+    public string        Categoria   { get; private set; } = string.Empty; // "Identidad", "Entidades", "Acciones", "Pantallas", "Mensajes", "Notificaciones", "Teams", "PDFs"
+    public bool          Activo      { get; private set; } = true;
+
+    protected CatalogoTermino() { }
+
+    public CatalogoTermino(int tenantId, string vertical, ClaveTermino clave, string valor, string categoria)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(valor, nameof(valor));
+        ArgumentException.ThrowIfNullOrWhiteSpace(categoria, nameof(categoria));
+        ArgumentException.ThrowIfNullOrWhiteSpace(vertical, nameof(vertical));
+
+        TenantId  = tenantId;
+        Vertical  = vertical.Trim().ToLowerInvariant();
+        Clave     = clave;
+        Valor     = valor.Trim();
+        Categoria = categoria.Trim();
+    }
+
+    public void Actualizar(string valor, string categoria)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(valor, nameof(valor));
+        ArgumentException.ThrowIfNullOrWhiteSpace(categoria, nameof(categoria));
+
+        Valor     = valor.Trim();
+        Categoria = categoria.Trim();
         MarcarModificado();
     }
 

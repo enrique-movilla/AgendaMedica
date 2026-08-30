@@ -6,6 +6,8 @@
 
 namespace AgendaMedica.Application.DTOs;
 
+using AgendaMedica.Domain.Enums;
+
 // ── Cita (ahora incluye Aseguradora y régimen) ────────────────
 public record CitaDto(
     int      Id,
@@ -256,4 +258,15 @@ public record EspecialidadDto(int Id, string Nombre, string? Descripcion);
 public record SedeDto(int Id, string Nombre, string? Direccion, string? Ciudad);
 public record TipoIdentificacionDto(int Id, string Codigo, string Nombre);
 public record MotivoCancelacionDto(int Id, string Nombre, string? Descripcion, short Orden);
+
+// ── CatalogoTermino (términos paramétricos por tenant) ──────────
+public record CatalogoTerminoDto(
+    int           Id,
+    int           TenantId,
+    ClaveTermino  Clave,
+    string        Valor,
+    string        Categoria,
+    bool          Activo
+);
+
 public record PaginadoDto<T>(List<T> Items, int Total, int Pagina, int TamPagina, int TotalPaginas);

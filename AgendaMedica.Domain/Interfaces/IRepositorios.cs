@@ -10,6 +10,7 @@
 // ============================================================
 
 using AgendaMedica.Domain.Entities;
+using AgendaMedica.Domain.Enums;
 
 namespace AgendaMedica.Domain.Interfaces;
 
@@ -44,6 +45,7 @@ public interface IUnitOfWork : IAsyncDisposable
     ISedeRepositorio               Sedes                { get; }
     ITipoCitaRepositorio           TiposCita            { get; }
     IMotivoCancelacionRepositorio  MotivosCancelacion   { get; }
+    ICatalogoTerminoRepositorio    CatalogoTerminos     { get; }
 
     // Catálogos compartidos (nuevos v1.1)
     IDepartamentoRepositorio       Departamentos        { get; }
@@ -252,6 +254,14 @@ public interface ITipoUsuarioRepositorio
 // TipoIdentificacion usa byte como Id, no hereda de EntidadBase
 public interface ITipoIdentificacionRepositorio
 {
-    Task<TipoIdentificacion?> ObtenerPorIdAsync(byte id, CancellationToken ct = default);
-    Task<IList<TipoIdentificacion>> ObtenerTodosAsync(CancellationToken ct = default);
+    Task<AgendaMedica.Domain.Entities.TipoIdentificacion?> ObtenerPorIdAsync(byte id, CancellationToken ct = default);
+    Task<IList<AgendaMedica.Domain.Entities.TipoIdentificacion>> ObtenerTodosAsync(CancellationToken ct = default);
+}
+
+// ── ICatalogoTerminoRepositorio ────────────────────────────────
+public interface ICatalogoTerminoRepositorio : IRepositorio<CatalogoTermino>
+{
+    Task<IList<CatalogoTermino>> ObtenerPorTenantAsync(int tenantId, string vertical, CancellationToken ct = default);
+    Task<CatalogoTermino?> ObtenerPorTenantVerticalYClaveAsync(int tenantId, string vertical, ClaveTermino clave, CancellationToken ct = default);
+    Task<IList<CatalogoTermino>> ObtenerPorCategoriaAsync(int tenantId, string vertical, string categoria, CancellationToken ct = default);
 }

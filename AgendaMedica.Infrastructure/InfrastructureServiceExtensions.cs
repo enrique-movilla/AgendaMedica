@@ -87,12 +87,13 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IExcepcionHorariaRepositorio,
                            ExcepcionHorariaRepositorio>();
 
-        // ── Catálogos propios ─────────────────────────────────
+// ── Catálogos propios ─────────────────────────────────
         services.AddScoped<IAseguradoraRepositorio,  AseguradoraRepositorio>();
         services.AddScoped<IEspecialidadRepositorio, EspecialidadRepositorio>();
         services.AddScoped<ISedeRepositorio,         SedeRepositorio>();
         services.AddScoped<ITipoCitaRepositorio,     TipoCitaRepositorio>();
         services.AddScoped<IMotivoCancelacionRepositorio, MotivoCancelacionRepositorio>();
+        services.AddScoped<ICatalogoTerminoRepositorio,    CatalogoTerminoRepositorio>();
 
         // ── Catálogos compartidos ─────────────────────────────
         services.AddScoped<IDepartamentoRepositorio, DepartamentoRepositorio>();

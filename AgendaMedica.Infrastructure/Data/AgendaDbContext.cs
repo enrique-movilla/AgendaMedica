@@ -37,6 +37,7 @@ public class AgendaDbContext : DbContext
     public DbSet<Sede>                 Sedes                { get; set; }
     public DbSet<EstadoCitaCatalogo>   EstadosCita          { get; set; }
     public DbSet<MotivoCancelacion>    MotivosCancelacion   { get; set; }
+    public DbSet<CatalogoTermino>      CatalogoTerminos     { get; set; }
 
     // ── Catálogos compartidos (también usados por HC y Facturación)
     public DbSet<Departamento>         Departamentos        { get; set; }

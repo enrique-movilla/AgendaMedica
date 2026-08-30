@@ -9,6 +9,7 @@
 // ============================================================
 
 using AgendaMedica.Domain.Entities;
+using AgendaMedica.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -16,9 +17,9 @@ namespace AgendaMedica.Infrastructure.Data.Configurations;
 
 // ── TipoIdentificacion ────────────────────────────────────────
 public class TipoIdentificacionConfiguration
-    : IEntityTypeConfiguration<TipoIdentificacion>
+    : IEntityTypeConfiguration<AgendaMedica.Domain.Entities.TipoIdentificacion>
 {
-    public void Configure(EntityTypeBuilder<TipoIdentificacion> b)
+    public void Configure(EntityTypeBuilder<AgendaMedica.Domain.Entities.TipoIdentificacion> b)
     {
         b.ToTable("TipoIdentificacion");
 
@@ -175,6 +176,54 @@ public class SedeConfiguration
             .IsRequired()
             .HasDefaultValue(true);
 
+b.Property(e => e.FechaCreacion)
+            .IsRequired()
+            .HasColumnType("timestamp(0)")
+            .HasDefaultValueSql("now() at time zone 'utc'()");
+
+        b.Property(e => e.FechaModificacion)
+            .HasColumnType("timestamp(0)")
+            .IsRequired(false);
+
+        b.HasIndex(e => e.Nombre).IsUnique();
+    }
+}
+
+// ── CatalogoTermino ────────────────────────────────────────────
+public class CatalogoTerminoConfiguration
+    : IEntityTypeConfiguration<CatalogoTermino>
+{
+    public void Configure(EntityTypeBuilder<CatalogoTermino> b)
+    {
+        b.ToTable("CatalogoTermino");
+
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Id).UseIdentityColumn();
+
+        b.Property(e => e.TenantId)
+            .IsRequired();
+
+        b.Property(e => e.Vertical)
+            .IsRequired()
+            .HasMaxLength(50)
+            .HasDefaultValue("default");
+
+        b.Property(e => e.Clave)
+            .IsRequired()
+            .HasConversion<byte>();
+
+        b.Property(e => e.Valor)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        b.Property(e => e.Categoria)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        b.Property(e => e.Activo)
+            .IsRequired()
+            .HasDefaultValue(true);
+
         b.Property(e => e.FechaCreacion)
             .IsRequired()
             .HasColumnType("timestamp(0)")
@@ -183,6 +232,12 @@ public class SedeConfiguration
         b.Property(e => e.FechaModificacion)
             .HasColumnType("timestamp(0)")
             .IsRequired(false);
+
+        // Índice único por tenant + vertical + clave
+        b.HasIndex(e => new { e.TenantId, e.Vertical, e.Clave }).IsUnique();
+
+        // Índice por tenant + vertical + categoría
+        b.HasIndex(e => new { e.TenantId, e.Vertical, e.Categoria });
     }
 }
 
