@@ -366,6 +366,10 @@ interface CatalogoContextValue {
   tenantId: number
   /** Cambia el tenant activo y recarga el catálogo */
   setTenantId: (id: number) => void
+  /** Vertical activa (default, salud, belleza, servicios, taller) */
+  vertical: string
+  /** Cambia la vertical y recarga el catálogo */
+  setVertical: (v: string) => void
   /** Fuerza recarga del catálogo */
   recargar: () => Promise<void>
   /** Obtiene el valor de una clave (fallback a DEFAULT_VALUES) */
@@ -378,6 +382,7 @@ const CatalogoContext = createContext<CatalogoContextValue | null>(null)
 
 export function CatalogoProvider({ children, tenantId: initialTenantId = 1 }: { children: ReactNode; tenantId?: number }) {
   const [tenantId, setTenantIdState] = useState<number>(initialTenantId)
+  const [vertical, setVerticalState] = useState<string>(() => localStorage.getItem('verticalActiva') ?? 'default')
   const [terminos, setTerminos] = useState<Record<ClaveTermino, string>>({} as Record<ClaveTermino, string>)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -386,7 +391,7 @@ export function CatalogoProvider({ children, tenantId: initialTenantId = 1 }: { 
     setCargando(true)
     setError(null)
     try {
-      const data = await api.catalogoTerminos(tenantId)
+      const data = await api.catalogoTerminos(tenantId, vertical)
       const mapa: Record<ClaveTermino, string> = {} as Record<ClaveTermino, string>
       for (const item of data) {
         if (item.activo) {
@@ -404,7 +409,7 @@ export function CatalogoProvider({ children, tenantId: initialTenantId = 1 }: { 
     } finally {
       setCargando(false)
     }
-  }, [tenantId])
+  }, [tenantId, vertical])
 
   useEffect(() => {
     cargar()
@@ -412,6 +417,11 @@ export function CatalogoProvider({ children, tenantId: initialTenantId = 1 }: { 
 
   const setTenantId = (id: number) => {
     setTenantIdState(id)
+  }
+
+  const setVertical = (v: string) => {
+    setVerticalState(v)
+    localStorage.setItem('verticalActiva', v)
   }
 
   const t = (clave: ClaveTermino): string => {
@@ -434,6 +444,8 @@ export function CatalogoProvider({ children, tenantId: initialTenantId = 1 }: { 
     error,
     tenantId,
     setTenantId,
+    vertical,
+    setVertical,
     recargar: cargar,
     t,
     tf,

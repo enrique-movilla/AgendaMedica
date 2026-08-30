@@ -1,5 +1,5 @@
 // ============================================================
-//  AGENDA MÉDICA — IDENTIDAD DE APLICACIÓN
+//  SINCORA — IDENTIDAD DE APLICACIÓN
 //  Proyecto : AgendaMedica / frontend / src / components
 //  Archivo  : IdentidadView.tsx
 // ============================================================
@@ -68,22 +68,53 @@ function Spinner({ texto = 'Cargando…' }: { texto?: string }) {
   )
 }
 
+type Vertical = 'default' | 'salud' | 'belleza' | 'servicios' | 'taller'
+
+const VISTA_PREVIA_CLAVES = [
+  'NombreAplicacion', 'TerminoCliente', 'TerminoRecurso', 'TerminoServicio',
+  'TerminoCita', 'TerminoDisponibilidad', 'AccionNuevaAsignacion', 'PantallaOperacionHoy',
+] as const
+
+const VISTA_PREVIA_ETIQUETAS: Record<string, string> = {
+  NombreAplicacion: 'Nombre App',
+  TerminoCliente: 'Cliente',
+  TerminoRecurso: 'Recurso/Equipo',
+  TerminoServicio: 'Servicio',
+  TerminoCita: 'Cita/Reserva',
+  TerminoDisponibilidad: 'Disponibilidad',
+  AccionNuevaAsignacion: 'Nueva asignación',
+  PantallaOperacionHoy: 'Pantalla principal',
+}
+
 export function IdentidadView() {
-  const { t, recargar } = useCatalogo()
-  const [vertical, setVertical] = useState<'default' | 'salud' | 'belleza' | 'servicios' | 'taller'>('default')
-  const [verticalActiva, setVerticalActiva] = useState<'default' | 'salud' | 'belleza' | 'servicios' | 'taller'>('default')
+  const { t, recargar, vertical: verticalActiva, setVertical: setVerticalContext } = useCatalogo()
+  const [vertical, setVertical] = useState<Vertical>('default')
   const [sembrando, setSembrando] = useState(false)
   const [seedExito, setSeedExito] = useState<string | null>(null)
   const [seedError, setSeedError] = useState<string | null>(null)
   const [mostrarCatalogo, setMostrarCatalogo] = useState(false)
+  const [previewTerminos, setPreviewTerminos] = useState<Record<string, string> | null>(null)
 
   useEffect(() => {
-    const guardada = localStorage.getItem('verticalActiva') as typeof vertical | null
-    if (guardada) {
-      setVertical(guardada)
-      setVerticalActiva(guardada)
+    setVertical(verticalActiva as Vertical)
+  }, [verticalActiva])
+
+  // Cargar vista previa cuando cambia la vertical seleccionada
+  useEffect(() => {
+    if (vertical === verticalActiva) {
+      setPreviewTerminos(null)
+      return
     }
-  }, [])
+    api.catalogoTerminos(1, vertical)
+      .then((data) => {
+        const mapa: Record<string, string> = {}
+        for (const item of data) {
+          if (item.activo) mapa[item.clave] = item.valor
+        }
+        setPreviewTerminos(mapa)
+      })
+      .catch(() => setPreviewTerminos(null))
+  }, [vertical, verticalActiva])
 
   const handleComboChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setVertical(e.target.value as typeof vertical)
@@ -95,12 +126,8 @@ export function IdentidadView() {
     setSeedError(null)
     try {
       const res = await api.seedCatalogo(1, { vertical })
-      setSeedExito(`Vertical "${vertical}" sembrada: ${res.terminosCreados} términos creados/actualizados. Recargando...`)
-      setVerticalActiva(vertical)
-      localStorage.setItem('verticalActiva', vertical)
-      await recargar()
-      // Refresh completo para reinicializar todo el contexto con los nuevos valores
-      setTimeout(() => window.location.reload(), 500)
+      setSeedExito(`Vertical "${vertical}" sembrada: ${res.terminosCreados} términos creados/actualizados.`)
+      setVerticalContext(vertical)
     } catch (e) {
       setSeedError(e instanceof Error ? e.message : 'Error sembrando vertical')
     } finally {
@@ -157,16 +184,22 @@ export function IdentidadView() {
           )}
 
           <div className="pt-2 border-t border-border">
-            <h4 className="text-sm font-medium mb-2">Términos clave actuales (vista previa)</h4>
+            <h4 className="text-sm font-medium mb-2">
+              Términos clave (vista previa)
+              {vertical !== verticalActiva && (
+                <span className="ml-2 text-xs font-normal text-foreground/50">
+                  — Preview de "{vertical}"
+                </span>
+              )}
+            </h4>
             <div className="grid gap-2 sm:grid-cols-2">
-              <VistaPreviaTermino etiqueta="Nombre App" valor={t('NombreAplicacion')} />
-              <VistaPreviaTermino etiqueta="Cliente" valor={t('TerminoCliente')} />
-              <VistaPreviaTermino etiqueta="Recurso/Equipo" valor={t('TerminoRecurso')} />
-              <VistaPreviaTermino etiqueta="Servicio" valor={t('TerminoServicio')} />
-              <VistaPreviaTermino etiqueta="Cita/Reserva" valor={t('TerminoCita')} />
-              <VistaPreviaTermino etiqueta="Disponibilidad" valor={t('TerminoDisponibilidad')} />
-              <VistaPreviaTermino etiqueta="Nueva asignación" valor={t('AccionNuevaAsignacion')} />
-              <VistaPreviaTermino etiqueta="Pantalla principal" valor={t('PantallaOperacionHoy')} />
+              {VISTA_PREVIA_CLAVES.map((clave) => (
+                <VistaPreviaTermino
+                  key={clave}
+                  etiqueta={VISTA_PREVIA_ETIQUETAS[clave]}
+                  valor={previewTerminos?.[clave] ?? t(clave)}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -193,7 +226,7 @@ export function IdentidadView() {
 
       {mostrarCatalogo && (
         <CatalogoTerminosModal
-          vertical={verticalActiva}
+          vertical={verticalActiva as Vertical}
           onCerrar={() => setMostrarCatalogo(false)}
           onRecargar={recargar}
         />
