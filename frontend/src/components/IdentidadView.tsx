@@ -26,6 +26,10 @@ const NUM_A_CLAVE: Record<number, string> = {
   40: 'MsgSeleccionarRecursos', 41: 'MsgSeleccionarReserva', 42: 'MsgProximaDisponibilidad',
   43: 'MsgSinDatos', 44: 'MsgCargando', 45: 'AgendaSub', 46: 'LabelProfesionales',
   47: 'MsgSeleccionarProfesional', 48: 'NuevaCitaSub',
+  80: 'AccionConfirmar', 81: 'AccionIniciarAtencion', 82: 'AccionReprogramar',
+  83: 'AccionCancelarCita', 84: 'DetallePaciente', 85: 'DetalleProfesional',
+  86: 'DetalleTipoCita', 87: 'DetalleAseguradora', 88: 'DetalleRegimen',
+  89: 'DetalleMotivo', 90: 'DetalleObservaciones',
 }
 
 // Runtime array of ClaveTermino keys (since ClaveTermino is a TS type, not a runtime enum)

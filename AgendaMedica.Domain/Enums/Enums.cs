@@ -171,4 +171,17 @@ public enum ClaveTermino : byte
     PdfColumnaServicio     = 74,
     PdfColumnaFechaHora    = 75,
     PdfColumnaEstado       = 76,
+
+    // Etiquetas de acciones y detalle de citas (UI)
+    AccionConfirmar        = 80,
+    AccionIniciarAtencion  = 81,
+    AccionReprogramar      = 82,
+    AccionCancelarCita     = 83,
+    DetallePaciente        = 84,
+    DetalleProfesional     = 85,
+    DetalleTipoCita        = 86,
+    DetalleAseguradora     = 87,
+    DetalleRegimen         = 88,
+    DetalleMotivo          = 89,
+    DetalleObservaciones   = 90,
 }

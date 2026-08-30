@@ -35,6 +35,10 @@ const NUM_A_CLAVE: Record<number, ClaveTermino> = {
   70: 'PdfTituloReporteCitas', 71: 'PdfTituloHistorial', 72: 'PdfColumnaCliente',
   73: 'PdfColumnaRecurso', 74: 'PdfColumnaServicio', 75: 'PdfColumnaFechaHora',
   76: 'PdfColumnaEstado',
+  80: 'AccionConfirmar', 81: 'AccionIniciarAtencion', 82: 'AccionReprogramar',
+  83: 'AccionCancelarCita', 84: 'DetallePaciente', 85: 'DetalleProfesional',
+  86: 'DetalleTipoCita', 87: 'DetalleAseguradora', 88: 'DetalleRegimen',
+  89: 'DetalleMotivo', 90: 'DetalleObservaciones',
 }
 
 // ── Valor por defecto para cuando no hay proveedor (evita crashes) ──
