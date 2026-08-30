@@ -13,6 +13,20 @@ import { api } from '../lib/api'
 import { useCatalogo } from '../context/CatalogoContext.tsx'
 import type { CatalogoTerminoDto, ClaveTermino } from '../lib/types'
 
+// Mapeo enum numérico → string (mismo que en CatalogoContext)
+const NUM_A_CLAVE: Record<number, string> = {
+  1: 'NombreAplicacion', 2: 'LemaPrincipal', 3: 'DescripcionBreve',
+  4: 'MensajeComercial', 5: 'CtaPrincipal', 6: 'CtaAlternativa',
+  10: 'TerminoCliente', 11: 'TerminoRecurso', 12: 'TerminoServicio',
+  13: 'TerminoCita', 14: 'TerminoHistorial', 15: 'TerminoDisponibilidad',
+  20: 'AccionNuevaAsignacion', 21: 'AccionVerDisponibilidad', 22: 'AccionBuscarCliente',
+  23: 'AccionGestionarRecursos', 24: 'AccionGestionarServicios',
+  30: 'PantallaOperacionHoy', 31: 'PantallaCalendario', 32: 'PantallaDisponibilidad',
+  33: 'PantallaCatalogoServicios', 34: 'PantallaClientes', 35: 'PantallaRecursos',
+  40: 'MsgSeleccionarRecursos', 41: 'MsgSeleccionarReserva', 42: 'MsgProximaDisponibilidad',
+  43: 'MsgSinDatos', 44: 'MsgCargando',
+}
+
 // Runtime array of ClaveTermino keys (since ClaveTermino is a TS type, not a runtime enum)
 const CLAVE_TERMINO_KEYS: ClaveTermino[] = [
   'NombreAplicacion', 'LemaPrincipal', 'DescripcionBreve', 'MensajeComercial', 'CtaPrincipal', 'CtaAlternativa',
@@ -109,7 +123,12 @@ export function IdentidadView() {
       .then((data) => {
         const mapa: Record<string, string> = {}
         for (const item of data) {
-          if (item.activo) mapa[item.clave] = item.valor
+          if (item.activo) {
+            const claveStr = typeof item.clave === 'number'
+              ? NUM_A_CLAVE[item.clave]
+              : String(item.clave)
+            if (claveStr) mapa[claveStr] = item.valor
+          }
         }
         setPreviewTerminos(mapa)
       })

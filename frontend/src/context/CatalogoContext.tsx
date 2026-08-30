@@ -13,6 +13,29 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { api } from '../lib/api'
 import type { ClaveTermino } from '../lib/types'
 
+// ── Mapeo enum numérico (backend) → string key (frontend) ──
+// El backend serializa ClaveTermino como byte. Este mapa convierte esos números
+// a los strings que el frontend usa como keys.
+const NUM_A_CLAVE: Record<number, ClaveTermino> = {
+  1: 'NombreAplicacion', 2: 'LemaPrincipal', 3: 'DescripcionBreve',
+  4: 'MensajeComercial', 5: 'CtaPrincipal', 6: 'CtaAlternativa',
+  10: 'TerminoCliente', 11: 'TerminoRecurso', 12: 'TerminoServicio',
+  13: 'TerminoCita', 14: 'TerminoHistorial', 15: 'TerminoDisponibilidad',
+  20: 'AccionNuevaAsignacion', 21: 'AccionVerDisponibilidad', 22: 'AccionBuscarCliente',
+  23: 'AccionGestionarRecursos', 24: 'AccionGestionarServicios',
+  30: 'PantallaOperacionHoy', 31: 'PantallaCalendario', 32: 'PantallaDisponibilidad',
+  33: 'PantallaCatalogoServicios', 34: 'PantallaClientes', 35: 'PantallaRecursos',
+  40: 'MsgSeleccionarRecursos', 41: 'MsgSeleccionarReserva', 42: 'MsgProximaDisponibilidad',
+  43: 'MsgSinDatos', 44: 'MsgCargando',
+  50: 'NotifAsuntoNuevaCita', 51: 'NotifCuerpoNuevaCita', 52: 'NotifAsuntoRecordatorio',
+  53: 'NotifCuerpoRecordatorio', 54: 'NotifAsuntoCancelacion', 55: 'NotifCuerpoCancelacion',
+  56: 'NotifAsuntoReprogramacion', 57: 'NotifCuerpoReprogramacion',
+  60: 'TeamsAsuntoEvento', 61: 'TeamsCuerpoEvento', 62: 'TeamsUbicacion',
+  70: 'PdfTituloReporteCitas', 71: 'PdfTituloHistorial', 72: 'PdfColumnaCliente',
+  73: 'PdfColumnaRecurso', 74: 'PdfColumnaServicio', 75: 'PdfColumnaFechaHora',
+  76: 'PdfColumnaEstado',
+}
+
 // ── Valor por defecto para cuando no hay proveedor (evita crashes) ──
 const DEFAULT_VALUES: Record<ClaveTermino, string> = {
   // Identidad
@@ -395,7 +418,13 @@ export function CatalogoProvider({ children, tenantId: initialTenantId = 1 }: { 
       const mapa: Record<ClaveTermino, string> = {} as Record<ClaveTermino, string>
       for (const item of data) {
         if (item.activo) {
-          mapa[item.clave] = item.valor
+          // El backend retorna clave como número (enum byte), convertir a string
+          const claveStr = typeof item.clave === 'number'
+            ? NUM_A_CLAVE[item.clave]
+            : item.clave as ClaveTermino
+          if (claveStr) {
+            mapa[claveStr] = item.valor
+          }
         }
       }
       // Merge con defaults (defaults como fallback)
