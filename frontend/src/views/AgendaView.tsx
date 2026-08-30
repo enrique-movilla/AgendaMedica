@@ -223,7 +223,8 @@ export function AgendaView({
 
       {/* ── Barra superior: pestañas + controles ── */}
       <div className="mb-4 rounded-xl border border-border bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Línea 1: pestañas */}
+        <div className="flex items-center gap-2">
           <div className="flex rounded-lg border border-border p-0.5" role="tablist">
             {(
               [
@@ -247,67 +248,65 @@ export function AgendaView({
               </button>
             ))}
           </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {vista === 'diario' && (
-              <>
-                <button type="button" onClick={() => setFecha(sumarDias(fecha, -1))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
-                <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={inputCls} />
-                <button type="button" onClick={() => setFecha(sumarDias(fecha, 1))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
-                <button type="button" onClick={() => setFecha(hoyISO())} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">{t('BtnHoy')}</button>
-              </>
-            )}
-            {vista === 'semanal' && (
-              <>
-                <button type="button" onClick={() => setFecha(sumarDias(fecha, -7))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹ {t('VistaSemanal')}</button>
-                <span className="text-sm font-medium">{formatFecha(desde)} – {formatFecha(hasta)}</span>
-                <button type="button" onClick={() => setFecha(sumarDias(fecha, 7))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">{t('VistaSemanal')} ›</button>
-                <button type="button" onClick={() => setFecha(hoyISO())} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">{t('BtnHoy')}</button>
-              </>
-            )}
-            {vista === 'mensual' && (
-              <>
-                <button type="button" onClick={() => setFecha(sumarDias(fecha, -30))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
-                <input type="month" value={fecha.slice(0, 7)} onChange={(e) => setFecha(e.target.value ? `${e.target.value}-01` : fecha)} className={inputCls} />
-                <button type="button" onClick={() => setFecha(sumarDias(fecha, 31))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
-                <button type="button" onClick={() => setFecha(hoyISO())} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">{t('BtnHoy')}</button>
-              </>
-            )}
-            {vista === 'lista' && (
-              <>
-                <label className="text-sm">{t('LabelDesde')}
-                  <input type="date" value={desdeLista} onChange={(e) => setDesdeLista(e.target.value)} className={inputCls} />
-                </label>
-                <label className="text-sm">{t('LabelHasta')}
-                  <input type="date" value={hastaLista} onChange={(e) => setHastaLista(e.target.value)} className={inputCls} />
-                </label>
-              </>
-            )}
-            <div className="flex flex-col items-start gap-1">
-              <button
-                type="button"
-                onClick={buscarProximoTurno}
-                disabled={buscandoTurno || profIds.length === 0}
-                className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
-              >
-                {buscandoTurno ? t('MsgBuscando') : t('AccionProximoTurno')}
-              </button>
-              <span className="text-[11px] text-foreground/50">
-                {t('MsgBuscarDesde')} {formatFecha(fecha)}
-                {fecha === hoyISO()
-                  ? `, ${t('MsgDesdeLas')} ${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
-                  : `, ${t('MsgDesdeLaManana')}`}
-              </span>
-            </div>
+        {/* Línea 2: navegación + acciones */}
+        <div className="mt-2 flex items-center gap-2">
+          {/* Navegación de fecha según vista */}
+          {vista === 'diario' && (
+            <>
+              <button type="button" onClick={() => setFecha(sumarDias(fecha, -1))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
+              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={inputCls} />
+              <button type="button" onClick={() => setFecha(sumarDias(fecha, 1))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
+            </>
+          )}
+          {vista === 'semanal' && (
+            <>
+              <button type="button" onClick={() => setFecha(sumarDias(fecha, -7))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
+              <span className="text-sm font-medium whitespace-nowrap">{formatFecha(desde)} – {formatFecha(hasta)}</span>
+              <button type="button" onClick={() => setFecha(sumarDias(fecha, 7))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
+            </>
+          )}
+          {vista === 'mensual' && (
+            <>
+              <button type="button" onClick={() => setFecha(sumarDias(fecha, -30))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
+              <input type="month" value={fecha.slice(0, 7)} onChange={(e) => setFecha(e.target.value ? `${e.target.value}-01` : fecha)} className={inputCls} />
+              <button type="button" onClick={() => setFecha(sumarDias(fecha, 31))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
+            </>
+          )}
+          {vista === 'lista' && (
+            <>
+              <span className="text-sm">{t('LabelDesde')}</span>
+              <input type="date" value={desdeLista} onChange={(e) => setDesdeLista(e.target.value)} className={inputCls} />
+              <span className="text-sm">{t('LabelHasta')}</span>
+              <input type="date" value={hastaLista} onChange={(e) => setHastaLista(e.target.value)} className={inputCls} />
+            </>
+          )}
+
+          <button type="button" onClick={() => setFecha(hoyISO())} className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">{t('BtnHoy')}</button>
+
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setRefresh((x) => x + 1)}
-              disabled={cargando}
-              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground/70 transition-colors hover:bg-muted disabled:opacity-50"
+              onClick={buscarProximoTurno}
+              disabled={buscandoTurno || profIds.length === 0}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              ↻ {t('BtnActualizar')}
+              {buscandoTurno ? t('MsgBuscando') : t('AccionProximoTurno')}
             </button>
+            <span className="text-[11px] text-foreground/50 whitespace-nowrap">
+              {t('MsgBuscarDesde')} {formatFecha(fecha)}
+            </span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setRefresh((x) => x + 1)}
+            disabled={cargando}
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground/70 transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            ↻ {t('BtnActualizar')}
+          </button>
         </div>
 
         {/* Profesionales (multi-recurso a demanda) */}
