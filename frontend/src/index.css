@@ -1,18 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=Noto+Sans:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Figtree', 'Noto Sans', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
 
-  --color-primary: #0891b2;
+  /* Sincora — Design Tokens (MASTER.md) */
+  --color-primary: #075E78;
   --color-on-primary: #ffffff;
-  --color-secondary: #22d3ee;
-  --color-accent: #16a34a;
-  --color-background: #f0fdfa;
-  --color-foreground: #134e4a;
-  --color-muted: #e8f1f6;
-  --color-border: #ccfbf1;
+  --color-action: #087FA3;
+  --color-secondary: #14B8B0;
+  --color-background: #F2FBFA;
+  --color-foreground: #153B47;
+  --color-muted: #E8F4F8;
+  --color-border: #D1E9ED;
   --color-destructive: #dc2626;
+  --color-success: #18A86B;
 }
 
 :root {
