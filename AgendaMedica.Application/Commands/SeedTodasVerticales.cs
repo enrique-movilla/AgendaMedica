@@ -75,6 +75,7 @@ public class SeedTodasVerticalesHandler : IRequestHandler<SeedTodasVerticalesCom
                 (ClaveTermino.AgendaSub, "Calendario de citas por médico. Seleccione los médicos a mostrar.", "Mensajes"),
                 (ClaveTermino.LabelProfesionales, "Médicos", "Mensajes"),
                 (ClaveTermino.MsgSeleccionarProfesional, "Seleccione al menos un médico para ver el calendario.", "Mensajes"),
+                (ClaveTermino.NuevaCitaSub, "Registre una cita médica para un paciente existente. La duración depende del tipo de cita.", "Mensajes"),
             },
             "belleza" => new()
             {
@@ -109,6 +110,7 @@ public class SeedTodasVerticalesHandler : IRequestHandler<SeedTodasVerticalesCom
                 (ClaveTermino.AgendaSub, "Calendario de turnos por estilista. Seleccione los estilistas a mostrar.", "Mensajes"),
                 (ClaveTermino.LabelProfesionales, "Estilistas", "Mensajes"),
                 (ClaveTermino.MsgSeleccionarProfesional, "Seleccione al menos un estilista para ver el calendario.", "Mensajes"),
+                (ClaveTermino.NuevaCitaSub, "Registre un turno para un cliente existente. La duración depende del tipo de servicio.", "Mensajes"),
             },
             "servicios" => new()
             {
@@ -143,6 +145,7 @@ public class SeedTodasVerticalesHandler : IRequestHandler<SeedTodasVerticalesCom
                 (ClaveTermino.AgendaSub, "Calendario de reuniones por consultor. Seleccione los consultores a mostrar.", "Mensajes"),
                 (ClaveTermino.LabelProfesionales, "Consultores", "Mensajes"),
                 (ClaveTermino.MsgSeleccionarProfesional, "Seleccione al menos un consultor para ver el calendario.", "Mensajes"),
+                (ClaveTermino.NuevaCitaSub, "Registre una reunión para un cliente existente. La duración depende del tipo de asesoría.", "Mensajes"),
             },
             "taller" => new()
             {
@@ -177,6 +180,7 @@ public class SeedTodasVerticalesHandler : IRequestHandler<SeedTodasVerticalesCom
                 (ClaveTermino.AgendaSub, "Calendario de órdenes por técnico. Seleccione los técnicos a mostrar.", "Mensajes"),
                 (ClaveTermino.LabelProfesionales, "Técnicos", "Mensajes"),
                 (ClaveTermino.MsgSeleccionarProfesional, "Seleccione al menos un técnico para ver el calendario.", "Mensajes"),
+                (ClaveTermino.NuevaCitaSub, "Registre una orden para un cliente existente. La duración depende del tipo de reparación.", "Mensajes"),
             },
             _ => new()
             {
@@ -211,6 +215,7 @@ public class SeedTodasVerticalesHandler : IRequestHandler<SeedTodasVerticalesCom
                 (ClaveTermino.AgendaSub, "Calendario de reservas por recurso. Seleccione los recursos a mostrar.", "Mensajes"),
                 (ClaveTermino.LabelProfesionales, "Recursos", "Mensajes"),
                 (ClaveTermino.MsgSeleccionarProfesional, "Seleccione al menos un recurso para ver el calendario.", "Mensajes"),
+                (ClaveTermino.NuevaCitaSub, "Registre una cita para un paciente existente. La duración depende del tipo de cita.", "Mensajes"),
             }
         };
 }

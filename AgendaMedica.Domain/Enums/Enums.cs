@@ -146,6 +146,7 @@ public enum ClaveTermino : byte
     AgendaSub              = 45,   // Subtítulo de la pantalla Agenda
     LabelProfesionales     = 46,   // Título de la sección de selección de profesionales
     MsgSeleccionarProfesional= 47, // "Seleccione al menos un profesional para ver el calendario"
+    NuevaCitaSub            = 48,   // Subtítulo de la pantalla Nueva Cita
 
     // Notificaciones y comunicaciones (backend)
     NotifAsuntoNuevaCita   = 50,

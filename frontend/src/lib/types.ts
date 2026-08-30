@@ -498,6 +498,7 @@ export type ClaveTermino =
   | 'MsgDesdeLaManana'
   | 'MsgSinTurnosDisponibles'
   | 'MsgSeleccionarProfesional'
+  | 'NuevaCitaSub'
   | 'MsgSinCitasFecha'
   | 'MsgSinCitasRango'
   | 'MsgSeleccionarCita'

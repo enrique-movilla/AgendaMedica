@@ -108,7 +108,7 @@ export function NuevaCitaView({
     <div className="max-w-3xl">
       <Cabecera
         titulo={t('TerminoCita')}
-        sub="Registre una cita para un paciente existente. La duración depende del tipo de cita."
+        sub={t('NuevaCitaSub')}
       />
 
       {resultado && <ModalExitoCreacion cita={resultado} onOk={() => onFinalizar?.(resultado)} />}
