@@ -256,7 +256,7 @@ export function AgendaView({
           {vista === 'diario' && (
             <>
               <button type="button" onClick={() => setFecha(sumarDias(fecha, -1))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
-              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={inputCls} />
+              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-[160px] rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
               <button type="button" onClick={() => setFecha(sumarDias(fecha, 1))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
             </>
           )}
@@ -270,34 +270,33 @@ export function AgendaView({
           {vista === 'mensual' && (
             <>
               <button type="button" onClick={() => setFecha(sumarDias(fecha, -30))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">‹</button>
-              <input type="month" value={fecha.slice(0, 7)} onChange={(e) => setFecha(e.target.value ? `${e.target.value}-01` : fecha)} className={inputCls} />
+              <input type="month" value={fecha.slice(0, 7)} onChange={(e) => setFecha(e.target.value ? `${e.target.value}-01` : fecha)} className="w-[160px] rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
               <button type="button" onClick={() => setFecha(sumarDias(fecha, 31))} className="rounded-md border border-border px-2 py-1 text-sm hover:bg-muted">›</button>
             </>
           )}
           {vista === 'lista' && (
             <>
               <span className="text-sm">{t('LabelDesde')}</span>
-              <input type="date" value={desdeLista} onChange={(e) => setDesdeLista(e.target.value)} className={inputCls} />
+              <input type="date" value={desdeLista} onChange={(e) => setDesdeLista(e.target.value)} className="w-[140px] rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
               <span className="text-sm">{t('LabelHasta')}</span>
-              <input type="date" value={hastaLista} onChange={(e) => setHastaLista(e.target.value)} className={inputCls} />
+              <input type="date" value={hastaLista} onChange={(e) => setHastaLista(e.target.value)} className="w-[140px] rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </>
           )}
 
           <button type="button" onClick={() => setFecha(hoyISO())} className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">{t('BtnHoy')}</button>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={buscarProximoTurno}
-              disabled={buscandoTurno || profIds.length === 0}
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
-            >
-              {buscandoTurno ? t('MsgBuscando') : t('AccionProximoTurno')}
-            </button>
-            <span className="text-[11px] text-foreground/50 whitespace-nowrap">
-              {t('MsgBuscarDesde')} {formatFecha(fecha)}
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={buscarProximoTurno}
+            disabled={buscandoTurno || profIds.length === 0}
+            className="whitespace-nowrap rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {buscandoTurno ? t('MsgBuscando') : t('AccionProximoTurno')}
+          </button>
+
+          <span className="text-[11px] text-foreground/50 whitespace-nowrap">
+            {t('MsgBuscarDesde')} {formatFecha(fecha)}
+          </span>
 
           <button
             type="button"
