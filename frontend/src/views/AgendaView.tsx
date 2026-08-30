@@ -915,6 +915,7 @@ function PanelDetalleCita({
   const [error, setError] = useState<string | null>(null)
   const [motivosCancelacion, setMotivosCancelacion] = useState<MotivoCancelacionDto[]>([])
   const [enDesarrollo, setEnDesarrollo] = useState(false)
+  const [verDetalle, setVerDetalle] = useState(false)
 
   useEffect(() => {
     api.motivosCancelacion().then(setMotivosCancelacion).catch(() => {})
@@ -926,11 +927,13 @@ function PanelDetalleCita({
       setHistorial([])
       setAccion(null)
       setError(null)
+      setVerDetalle(false)
       return
     }
     setCargando(true)
     setError(null)
     setAccion(null)
+    setVerDetalle(false)
     api
       .cita(cita.citaId)
       .then((c) => {
@@ -1026,7 +1029,7 @@ function PanelDetalleCita({
           </button>
         </div>
       )}
-      {/* Acciones del ciclo de vida — fuera del cuadro de detalle */}
+      {/* Acciones del ciclo de vida */}
       <div className="mb-3 rounded-lg border border-border bg-white p-3">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">{t('LabelAcciones')}</p>
         <div className="flex flex-wrap gap-2">
@@ -1058,6 +1061,13 @@ function PanelDetalleCita({
               {t('AccionCancelarCita')}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setVerDetalle(true)}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-muted"
+          >
+            {t('AccionVerDetalle') ?? 'Ver Detalle'}
+          </button>
         </div>
 
         {accion && accion !== 'cancelar' && accion !== 'iniciar' && (
@@ -1122,9 +1132,9 @@ function PanelDetalleCita({
         )}
       </div>
 
-      {/* Cuadro de detalle de la cita */}
-      <div className="rounded-lg border border-border bg-white p-5">
-        <div className="mb-4 flex items-start justify-between gap-3">
+      {/* Resumen compacto de la cita */}
+      <div className="rounded-lg border border-border bg-white p-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">{t('DetalleCita')}#{cita.citaId}</h2>
             <span className={`mt-1 inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(cita.estadoId)}`}>
@@ -1150,57 +1160,25 @@ function PanelDetalleCita({
         {cargando || !detalle ? (
           <Spinner texto={t('MsgCargandoDetalle')} />
         ) : (
-          <>
-            <dl className="space-y-2 text-sm">
-              <FilaDetalle k={t('DetalleFecha')} v={`${formatFecha(cita.fecha)} · ${cita.horaInicio}–${cita.horaFin}`} />
-              <FilaDetalle k={t('DetallePaciente')} v={`${cita.paciente} (${cita.identificacion})`} />
-              <FilaDetalle k={t('DetalleEdad')} v={`${cita.edadPaciente} ${t('UnidadAnios')} · ${cita.sexo === 'M' ? 'M' : 'F'}`} />
-              <FilaDetalle k={t('DetalleProfesional')} v={`${cita.profesionalNombre}${cita.especialidad ? ` · ${cita.especialidad}` : ''}`} />
-              <FilaDetalle k={t('DetalleTipoCita')} v={`${cita.tipoCita} · ${cita.duracionMinutos} min`} />
-              <FilaDetalle k={t('DetalleAseguradora')} v={cita.aseguradora ?? '—'} />
-              <FilaDetalle k={t('DetalleRegimen')} v={cita.regimen ?? '—'} />
-              <FilaDetalle k={t('DetalleMotivo')} v={cita.motivoConsulta ?? '—'} />
-              <FilaDetalle k={t('DetalleObservaciones')} v={detalle.observaciones ?? '—'} />
-              {detalle.teamsJoinUrl && (
-                <div className="pt-1">
-                  <a
-                    href={detalle.teamsJoinUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm font-medium text-primary hover:underline"
-                  >
-                    {t('BtnUnirseTeams')}
-                  </a>
-                </div>
-              )}
-            </dl>
-
-            {/* Historial */}
-            <div className="mt-5 border-t border-border pt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-foreground/60">{t('LabelHistorial')} ({historial.length})</p>
-              {historial.length === 0 ? (
-                <p className="text-sm text-foreground/50">{t('MsgSinCambios')}</p>
-              ) : (
-                <ul className="relative space-y-3 pl-4">
-                  {historial.map((h) => (
-                    <li key={h.id} className="relative border-l border-border pl-3">
-                      <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-primary" />
-                      <p className="text-xs">
-                        <span className="font-semibold">{h.estadoNuevo}</span>
-                        {h.estadoAnterior && <span className="text-foreground/50"> ({t('MsgDesde')} {h.estadoAnterior})</span>}
-                      </p>
-                      <p className="text-[11px] text-foreground/50">
-                        {formatFechaHora(h.fechaCambio)} · {h.cambiadoPor} · {h.origen}
-                      </p>
-                      {h.motivo && <p className="text-[11px] text-foreground/60">«{h.motivo}»</p>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </>
+          <dl className="space-y-1.5 text-sm">
+            <FilaDetalle k={t('DetalleFecha')} v={`${formatFecha(cita.fecha)} · ${cita.horaInicio}–${cita.horaFin}`} />
+            <FilaDetalle k={t('DetallePaciente')} v={`${cita.paciente} (${cita.identificacion})`} />
+            <FilaDetalle k={t('DetalleEdad')} v={`${cita.edadPaciente} ${t('UnidadAnios')} · ${cita.sexo === 'M' ? 'M' : 'F'}`} />
+            <FilaDetalle k={t('DetalleProfesional')} v={`${cita.profesionalNombre}${cita.especialidad ? ` · ${cita.especialidad}` : ''}`} />
+            <FilaDetalle k={t('DetalleTipoCita')} v={`${cita.tipoCita} · ${cita.duracionMinutos} min`} />
+            <FilaDetalle k={t('DetalleAseguradora')} v={cita.aseguradora ?? '—'} />
+          </dl>
         )}
       </div>
+
+      {/* Modal de detalle completo */}
+      {verDetalle && detalle && (
+        <DetalleCitaCompleto
+          cita={detalle}
+          historial={historial}
+          onCerrar={() => setVerDetalle(false)}
+        />
+      )}
 
       {/* Modal de cancelación */}
       {accion === 'cancelar' && detalle && (
@@ -1222,6 +1200,112 @@ function PanelDetalleCita({
         />
       )}
     </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MODAL DE DETALLE COMPLETO DE CITA (2 columnas)
+// ══════════════════════════════════════════════════════════════
+function DetalleCitaCompleto({
+  cita,
+  historial,
+  onCerrar,
+}: {
+  cita: CitaDto
+  historial: HistorialEstadoDto[]
+  onCerrar: () => void
+}) {
+  const { t } = useCatalogo()
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCerrar])
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCerrar}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-xl border border-border bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Cabecera */}
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">{t('DetalleCita')}#{cita.id}</h2>
+            <span className={`mt-1 inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${estadoBadge(cita.estadoId)}`}>
+              {cita.estado}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onCerrar}
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground/70 hover:bg-muted"
+          >
+            ✕ Volver
+          </button>
+        </div>
+
+        {/* Contenido: 2 columnas */}
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {/* Columna izquierda: detalle */}
+          <div className="w-1/2 overflow-y-auto border-r border-border p-6">
+            <dl className="space-y-3 text-sm">
+              <FilaDetalle k={t('DetalleFecha')} v={`${formatFecha(cita.fechaHora.slice(0, 10))} · ${cita.fechaHora.slice(11, 16)}–${cita.fechaHoraFin?.slice(11, 16) ?? ''}`} />
+              <FilaDetalle k={t('DetallePaciente')} v={`${cita.paciente?.nombresCompletos ?? ''} (${cita.paciente?.numeroIdentificacion ?? ''})`} />
+              <FilaDetalle k={t('DetalleEdad')} v={`${cita.paciente?.edadAnios ?? ''} ${t('UnidadAnios')} · ${cita.paciente?.sexo === 'M' ? 'M' : 'F'}`} />
+              <FilaDetalle k={t('DetalleProfesional')} v={`${cita.profesional?.nombresCompletos ?? ''}${cita.profesional?.especialidad ? ` · ${cita.profesional.especialidad}` : ''}`} />
+              <FilaDetalle k={t('DetalleTipoCita')} v={`${cita.tipoCita?.nombre ?? ''} · ${cita.tipoCita?.duracionMinutos ?? ''} min`} />
+              <FilaDetalle k={t('DetalleAseguradora')} v={cita.aseguradora?.nombre ?? '—'} />
+              <FilaDetalle k={t('DetalleRegimen')} v={cita.tipoUsuario?.nombre ?? '—'} />
+              <FilaDetalle k={t('DetalleMotivo')} v={cita.motivoConsulta ?? '—'} />
+              <FilaDetalle k={t('DetalleObservaciones')} v={cita.observaciones ?? '—'} />
+              {cita.teamsJoinUrl && (
+                <div className="pt-1">
+                  <a
+                    href={cita.teamsJoinUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    {t('BtnUnirseTeams')}
+                  </a>
+                </div>
+              )}
+            </dl>
+          </div>
+
+          {/* Columna derecha: historial */}
+          <div className="flex w-1/2 flex-col overflow-hidden p-6">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-foreground/60">{t('LabelHistorial')} ({historial.length})</p>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {historial.length === 0 ? (
+                <p className="text-sm text-foreground/50">{t('MsgSinCambios')}</p>
+              ) : (
+                <ul className="relative space-y-3 pl-4">
+                  {historial.map((h) => (
+                    <li key={h.id} className="relative border-l border-border pl-3">
+                      <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-primary" />
+                      <p className="text-xs">
+                        <span className="font-semibold">{h.estadoNuevo}</span>
+                        {h.estadoAnterior && <span className="text-foreground/50"> ({t('MsgDesde')} {h.estadoAnterior})</span>}
+                      </p>
+                      <p className="text-[11px] text-foreground/50">
+                        {formatFechaHora(h.fechaCambio)} · {h.cambiadoPor} · {h.origen}
+                      </p>
+                      {h.motivo && <p className="text-[11px] text-foreground/60">«{h.motivo}»</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
 
