@@ -58,7 +58,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp(0)")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<DateTime?>("FechaModificacion")
                         .HasColumnType("timestamp(0)");
@@ -108,6 +108,114 @@ namespace AgendaMedica.Infrastructure.Migrations
                         .HasDatabaseName("IX_Aseguradora_TipoEntidad");
 
                     b.ToTable("Aseguradora", (string)null);
+                });
+
+            modelBuilder.Entity("AgendaMedica.Domain.Entities.BloqueoAgenda", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<DateOnly>("FechaDesde")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("FechaHasta")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<TimeSpan?>("HoraFin")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan?>("HoraInicio")
+                        .HasColumnType("time");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("ProfesionalId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfesionalId", "FechaDesde", "FechaHasta")
+                        .HasDatabaseName("IX_BloqueoAgenda_Profesional_Fechas");
+
+                    b.ToTable("BloqueoAgenda", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_BloqueoAgenda_Fechas", "\"FechaHasta\" >= \"FechaDesde\"");
+
+                            t.HasCheckConstraint("CK_BloqueoAgenda_Franja", "(\"HoraInicio\" IS NULL AND \"HoraFin\" IS NULL) OR (\"HoraFin\" > \"HoraInicio\")");
+                        });
+                });
+
+            modelBuilder.Entity("AgendaMedica.Domain.Entities.CatalogoTermino", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Categoria")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<byte>("Clave")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp(0)")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp(0)");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Valor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Vertical")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("default");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Vertical", "Categoria");
+
+                    b.HasIndex("TenantId", "Vertical", "Clave")
+                        .IsUnique();
+
+                    b.ToTable("CatalogoTermino", (string)null);
                 });
 
             modelBuilder.Entity("AgendaMedica.Domain.Entities.Cita", b =>
@@ -311,7 +419,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp(0)")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<DateTime?>("FechaModificacion")
                         .HasColumnType("timestamp(0)");
@@ -346,6 +454,50 @@ namespace AgendaMedica.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("EstadoCita", (string)null);
+                });
+
+            modelBuilder.Entity("AgendaMedica.Domain.Entities.ExcepcionHoraria", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<TimeSpan>("HoraFin")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan>("HoraInicio")
+                        .HasColumnType("time");
+
+                    b.Property<int>("ProfesionalId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfesionalId", "Fecha")
+                        .HasDatabaseName("IX_ExcepcionHoraria_Profesional_Fecha");
+
+                    b.ToTable("ExcepcionHoraria", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ExcepcionHoraria_Rango", "\"HoraFin\" > \"HoraInicio\"");
+                        });
                 });
 
             modelBuilder.Entity("AgendaMedica.Domain.Entities.HistorialEstadoCita", b =>
@@ -394,6 +546,49 @@ namespace AgendaMedica.Infrastructure.Migrations
                         .HasDatabaseName("IX_HistorialCita_CitaId");
 
                     b.ToTable("HistorialEstadoCita", (string)null);
+                });
+
+            modelBuilder.Entity("AgendaMedica.Domain.Entities.MotivoCancelacion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp(0)")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp(0)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<short>("Orden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("MotivoCancelacion", (string)null);
                 });
 
             modelBuilder.Entity("AgendaMedica.Domain.Entities.Municipio", b =>
@@ -749,7 +944,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp(0)")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<DateTime?>("FechaModificacion")
                         .HasColumnType("timestamp(0)");
@@ -765,6 +960,9 @@ namespace AgendaMedica.Infrastructure.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
 
                     b.ToTable("Sede", (string)null);
                 });
@@ -796,7 +994,7 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp(0)")
-                        .HasDefaultValueSql("now() at time zone 'utc'()");
+                        .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.Property<DateTime?>("FechaModificacion")
                         .HasColumnType("timestamp(0)");
@@ -931,6 +1129,17 @@ namespace AgendaMedica.Infrastructure.Migrations
                     b.Navigation("TipoEntidad");
                 });
 
+            modelBuilder.Entity("AgendaMedica.Domain.Entities.BloqueoAgenda", b =>
+                {
+                    b.HasOne("AgendaMedica.Domain.Entities.Profesional", "Profesional")
+                        .WithMany()
+                        .HasForeignKey("ProfesionalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Profesional");
+                });
+
             modelBuilder.Entity("AgendaMedica.Domain.Entities.Cita", b =>
                 {
                     b.HasOne("AgendaMedica.Domain.Entities.Aseguradora", "Aseguradora")
@@ -973,6 +1182,17 @@ namespace AgendaMedica.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("AgendaMedica.Domain.Entities.DisponibilidadProfesional", b =>
+                {
+                    b.HasOne("AgendaMedica.Domain.Entities.Profesional", "Profesional")
+                        .WithMany()
+                        .HasForeignKey("ProfesionalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Profesional");
+                });
+
+            modelBuilder.Entity("AgendaMedica.Domain.Entities.ExcepcionHoraria", b =>
                 {
                     b.HasOne("AgendaMedica.Domain.Entities.Profesional", "Profesional")
                         .WithMany()

@@ -198,7 +198,7 @@ public class AseguradoraConfiguration : IEntityTypeConfiguration<Aseguradora>
         b.Property(e => e.FechaCreacion)
             .IsRequired()
             .HasColumnType("timestamp(0)")
-            .HasDefaultValueSql("now() at time zone 'utc'()");
+            .HasDefaultValueSql("now() at time zone 'utc'");
 
         b.Property(e => e.FechaModificacion)
             .HasColumnType("timestamp(0)")

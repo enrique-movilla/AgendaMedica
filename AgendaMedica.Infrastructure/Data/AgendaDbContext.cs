@@ -8,7 +8,9 @@
 // ============================================================
 
 using AgendaMedica.Domain.Entities;
+using AgendaMedica.Domain.Exceptions;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using System.Reflection;
 
 namespace AgendaMedica.Infrastructure.Data;
@@ -65,6 +67,33 @@ public class AgendaDbContext : DbContext
             if (entry.Entity is EntidadBase)
                 entry.Property("FechaModificacion").CurrentValue = DateTime.UtcNow;
         }
-        return await base.SaveChangesAsync(ct);
+        try
+        {
+            return await base.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (EsViolacionExclusionTraslape(ex))
+        {
+            // La BD rechazó el INSERT/UPDATE por el constraint EXCLUDE
+            // EX_Cita_Profesional_SinTraslape (Fase 4, ítem 15). Ocurre solo
+            // en condición de carrera: dos usuarios pasaron el check previo
+            // ExisteTraslapeAsync y guardaron el mismo slot a la vez.
+            // Se traduce a ConflictoHorarioException para que la API
+            // devuelva el 409 HORARIO_OCUPADO que el frontend ya maneja.
+            var cita = ChangeTracker.Entries()
+                .Where(e => e.Entity is Cita &&
+                       (e.State == EntityState.Added || e.State == EntityState.Modified))
+                .Select(e => (Cita)e.Entity)
+                .FirstOrDefault();
+            throw new ConflictoHorarioException(
+                cita?.FechaHora ?? DateTime.Now,
+                cita?.FechaHoraFin ?? DateTime.Now);
+        }
     }
+
+    /// <summary>
+    /// Detecta la violación del constraint de exclusión (SQLSTATE 23P01).
+    /// </summary>
+    private static bool EsViolacionExclusionTraslape(DbUpdateException ex)
+        => ex.InnerException is PostgresException pg &&
+           pg.SqlState == PostgresErrorCodes.ExclusionViolation;
 }

@@ -88,7 +88,7 @@ public class EspecialidadConfiguration
         b.Property(e => e.FechaCreacion)
             .IsRequired()
             .HasColumnType("timestamp(0)")
-            .HasDefaultValueSql("now() at time zone 'utc'()");
+            .HasDefaultValueSql("now() at time zone 'utc'");
 
         b.Property(e => e.FechaModificacion)
             .HasColumnType("timestamp(0)")
@@ -133,7 +133,7 @@ public class TipoCitaConfiguration
         b.Property(e => e.FechaCreacion)
             .IsRequired()
             .HasColumnType("timestamp(0)")
-            .HasDefaultValueSql("now() at time zone 'utc'()");
+            .HasDefaultValueSql("now() at time zone 'utc'");
 
         b.Property(e => e.FechaModificacion)
             .HasColumnType("timestamp(0)")
@@ -179,7 +179,7 @@ public class SedeConfiguration
 b.Property(e => e.FechaCreacion)
             .IsRequired()
             .HasColumnType("timestamp(0)")
-            .HasDefaultValueSql("now() at time zone 'utc'()");
+            .HasDefaultValueSql("now() at time zone 'utc'");
 
         b.Property(e => e.FechaModificacion)
             .HasColumnType("timestamp(0)")
@@ -227,7 +227,7 @@ public class CatalogoTerminoConfiguration
         b.Property(e => e.FechaCreacion)
             .IsRequired()
             .HasColumnType("timestamp(0)")
-            .HasDefaultValueSql("now() at time zone 'utc'()");
+            .HasDefaultValueSql("now() at time zone 'utc'");
 
         b.Property(e => e.FechaModificacion)
             .HasColumnType("timestamp(0)")
@@ -270,7 +270,7 @@ public class MotivoCancelacionConfiguration
         b.Property(e => e.FechaCreacion)
             .IsRequired()
             .HasColumnType("timestamp(0)")
-            .HasDefaultValueSql("now() at time zone 'utc'()");
+            .HasDefaultValueSql("now() at time zone 'utc'");
 
         b.Property(e => e.FechaModificacion)
             .HasColumnType("timestamp(0)")
