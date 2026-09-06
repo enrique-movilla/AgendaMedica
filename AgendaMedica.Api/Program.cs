@@ -106,15 +106,15 @@ app.Use(async (context, next) =>
 });
 
 // ── 6. Pipeline ───────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
+// Swagger habilitado en todos los entornos (incluido producción):
+// se usa para consultar y probar los endpoints. La API no tiene
+// autenticación, así que no expone nada que no sea ya público.
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Agenda Médica API v1");
-        c.RoutePrefix = "swagger";
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Agenda Médica API v1");
+    c.RoutePrefix = "swagger";
+});
 
 app.UseHttpsRedirection();
 app.UseCors("AgendaPolicy");
