@@ -883,3 +883,23 @@ public class LiberarBloqueoHandler
         LiberarBloqueoCommand request, CancellationToken ct)
         => _bloqueos.LiberarAsync(request.BloqueoId, ct);
 }
+
+// ══════════════════════════════════════════════════════════════
+//  DISPARAR RONDA DE RECORDATORIOS (manual, para pruebas)
+// ══════════════════════════════════════════════════════════════
+public record DispararRecordatoriosCommand() : IRequest<DispararRecordatoriosResultado>;
+
+public class DispararRecordatoriosHandler
+    : IRequestHandler<DispararRecordatoriosCommand, DispararRecordatoriosResultado>
+{
+    private readonly IRecordatorioService _recordatorios;
+    public DispararRecordatoriosHandler(IRecordatorioService recordatorios)
+        => _recordatorios = recordatorios;
+
+    public async Task<DispararRecordatoriosResultado> Handle(
+        DispararRecordatoriosCommand request, CancellationToken ct)
+    {
+        var enviados = await _recordatorios.EnviarRondaAsync(ct);
+        return new DispararRecordatoriosResultado(enviados, DateTime.Now);
+    }
+}

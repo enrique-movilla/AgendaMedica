@@ -270,3 +270,20 @@ public record CatalogoTerminoDto(
 );
 
 public record PaginadoDto<T>(List<T> Items, int Total, int Pagina, int TamPagina, int TotalPaginas);
+
+// ── Log de notificaciones (canales Email/SMS/WhatsApp) ──────────
+public record NotificacionLogDto(
+    int       Id,
+    int       CitaId,
+    string    Canal,
+    string    Destinatario,
+    string    TipoEvento,
+    string    Estado,
+    int       Intentos,
+    DateTime? UltimoIntento,
+    string?   Error,
+    DateTime  FechaCreacion
+);
+
+// ── Resultado del disparo manual de recordatorios ───────────────
+public record DispararRecordatoriosResultado(int Enviados, DateTime EjecutadoEl);

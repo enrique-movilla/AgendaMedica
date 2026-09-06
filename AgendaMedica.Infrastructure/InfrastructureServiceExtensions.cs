@@ -112,6 +112,10 @@ public static class InfrastructureServiceExtensions
         // Scoped: necesita acceso a DbContext (que es Scoped)
         services.AddScoped<INotificacionService, NotificacionService>();
 
+        // ── Rondas de recordatorios (job + disparo manual) ─────
+        // Scoped: usa DbContext e INotificacionService (Scoped)
+        services.AddScoped<IRecordatorioService, RecordatorioService>();
+
         // ── Bloqueo preventivo de turnos (Fase 3) ───────────────
         // Singleton + MemoryCache: bloqueos en memoria con TTL de 5 min
         services.AddMemoryCache();

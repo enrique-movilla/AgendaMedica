@@ -9,7 +9,9 @@ using AgendaMedica.Domain.Entities;
 using AgendaMedica.Domain.Enums;
 using AgendaMedica.Domain.Exceptions;
 using AgendaMedica.Domain.Interfaces;
+using AgendaMedica.Infrastructure.Data;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace AgendaMedica.Application.Queries;
 
@@ -524,5 +526,47 @@ public class ObtenerTerminosPorCategoriaHandler
         var terminos = await _uow.CatalogoTerminos.ObtenerPorCategoriaAsync(
             request.TenantId, request.Vertical, request.Categoria, ct);
         return terminos.Select(t => t.ToDto()).ToList();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LOG DE NOTIFICACIONES (Email/SMS/WhatsApp)
+// ══════════════════════════════════════════════════════════════
+//  Lee directo del DbContext (quirk: Application referencia a
+//  Infrastructure): NotificacionLog no tiene repositorio en UoW.
+public record ObtenerLogNotificacionesQuery(
+    int?    CitaId = null,
+    string? Canal = null,
+    string? Estado = null,
+    int     TamPagina = 50
+) : IRequest<List<NotificacionLogDto>>;
+
+public class ObtenerLogNotificacionesHandler
+    : IRequestHandler<ObtenerLogNotificacionesQuery, List<NotificacionLogDto>>
+{
+    private readonly AgendaDbContext _db;
+    public ObtenerLogNotificacionesHandler(AgendaDbContext db) => _db = db;
+
+    public async Task<List<NotificacionLogDto>> Handle(
+        ObtenerLogNotificacionesQuery request, CancellationToken ct)
+    {
+        var query = _db.NotificacionesLog.AsNoTracking().AsQueryable();
+
+        if (request.CitaId.HasValue)
+            query = query.Where(n => n.CitaId == request.CitaId.Value);
+        if (!string.IsNullOrWhiteSpace(request.Canal))
+            query = query.Where(n => n.Canal == request.Canal);
+        if (!string.IsNullOrWhiteSpace(request.Estado))
+            query = query.Where(n => n.Estado == request.Estado);
+
+        var tam = Math.Clamp(request.TamPagina, 1, 200);
+
+        return await query
+            .OrderByDescending(n => n.Id)
+            .Take(tam)
+            .Select(n => new NotificacionLogDto(
+                n.Id, n.CitaId, n.Canal, n.Destinatario, n.TipoEvento,
+                n.Estado, n.Intentos, n.UltimoIntento, n.Error, n.FechaCreacion))
+            .ToListAsync(ct);
     }
 }
