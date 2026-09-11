@@ -499,6 +499,7 @@ export type ClaveTermino =
   | 'MsgSinTurnosDisponibles'
   | 'MsgSeleccionarProfesional'
   | 'NuevaCitaSub'
+  | 'MsgSeleccionarCliente'
   | 'AccionConfirmar'
   | 'AccionIniciarAtencion'
   | 'AccionReprogramar'

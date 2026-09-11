@@ -17,6 +17,11 @@ import type {
 
 export type { CitaHint }
 
+// Más de este número de coincidencias se muestra como lista (una sola
+// selección); con pocos resultados se mantienen los botones.
+const UMBRAL_LISTA_CLIENTES = 6
+const TAM_PAGINA_BUSQUEDA_CLIENTES = 20
+
 export function NuevaCitaView({
   hint,
   onFinalizar,
@@ -67,7 +72,7 @@ export function NuevaCitaView({
     }
     const timer = setTimeout(() => {
       api
-        .pacientes({ nombre: docBusqueda.trim(), tamPagina: 8 })
+        .pacientes({ nombre: docBusqueda.trim(), tamPagina: TAM_PAGINA_BUSQUEDA_CLIENTES })
         .then(setPacientes)
         .catch((e) => setError(msgError(e)))
     }, 400)
@@ -78,8 +83,14 @@ export function NuevaCitaView({
   async function enviar() {
     setError(null)
     setResultado(null)
-    if (pacienteId === null || profId === null || tipoCitaId === null || !fechaHora) {
-      setError('Complete paciente, profesional, tipo de cita y fecha-hora.')
+    // El cliente se valida primero y solo: verlo en la lista no es
+    // seleccionarlo, hay que pulsarlo. Cancela el intento de reserva.
+    if (pacienteId === null) {
+      setError(t('MsgSeleccionarCliente'))
+      return
+    }
+    if (profId === null || tipoCitaId === null || !fechaHora) {
+      setError('Complete profesional, tipo de cita y fecha-hora.')
       return
     }
     setEnviando(true)
@@ -130,7 +141,7 @@ export function NuevaCitaView({
             className={inputCls}
           />
         </label>
-        {pacientes && pacientes.items.length > 0 && (
+        {pacientes && pacientes.items.length > 0 && pacientes.items.length <= UMBRAL_LISTA_CLIENTES && (
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {pacientes.items.map((p) => (
               <button
@@ -140,6 +151,7 @@ export function NuevaCitaView({
                   setPacienteId(p.id)
                   setPacienteNombre(p.nombresCompletos)
                 }}
+                aria-pressed={pacienteId === p.id}
                 className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                   pacienteId === p.id
                     ? 'border-primary bg-primary/5'
@@ -153,6 +165,52 @@ export function NuevaCitaView({
               </button>
             ))}
           </div>
+        )}
+        {pacientes && pacientes.items.length > UMBRAL_LISTA_CLIENTES && (
+          <div
+            className="mt-3 max-h-64 overflow-y-auto rounded-md border border-border"
+            role="listbox"
+            aria-label="Clientes encontrados (una sola selección)"
+          >
+            {pacientes.items.map((p) => {
+              const elegido = pacienteId === p.id
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="option"
+                  aria-selected={elegido}
+                  onClick={() => {
+                    setPacienteId(p.id)
+                    setPacienteNombre(p.nombresCompletos)
+                  }}
+                  className={`flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm transition-colors last:border-b-0 ${
+                    elegido ? 'bg-primary/5 font-medium' : 'bg-white hover:bg-muted'
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{p.nombresCompletos}</span>
+                    <span className="block text-xs text-foreground/60">
+                      {p.tipoIdentificacion} {p.numeroIdentificacion} · {p.edadAnios} {t('UnidadAnios')}
+                    </span>
+                  </span>
+                  {elegido && (
+                    <span aria-hidden="true" className="shrink-0 font-bold text-primary">✓</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {pacientes && pacientes.items.length > 0 && pacientes.total > pacientes.items.length && (
+          <p className="mt-2 text-xs text-foreground/60">
+            Mostrando {pacientes.items.length} de {pacientes.total}: refine la búsqueda…
+          </p>
+        )}
+        {pacientes && pacientes.items.length > 0 && pacienteId === null && (
+          <p className="mt-2 text-xs font-medium text-foreground/70">
+            Pulse un cliente de la lista para seleccionarlo.
+          </p>
         )}
         {pacienteNombre && (
           <p className="mt-3 text-sm text-foreground/60">

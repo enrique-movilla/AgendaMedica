@@ -147,6 +147,7 @@ public enum ClaveTermino : byte
     LabelProfesionales     = 46,   // Título de la sección de selección de profesionales
     MsgSeleccionarProfesional= 47, // "Seleccione al menos un profesional para ver el calendario"
     NuevaCitaSub            = 48,   // Subtítulo de la pantalla Nueva Cita
+    MsgSeleccionarCliente   = 49,   // "Seleccione el cliente de la lista antes de continuar"
 
     // Notificaciones y comunicaciones (backend)
     NotifAsuntoNuevaCita   = 50,
