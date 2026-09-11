@@ -24,6 +24,7 @@ import {
   pxHora,
   horasEje,
 } from '../lib/constants'
+import { leerIdsPerfil, guardarIdsPerfil, type PerfilId } from '../lib/perfil'
 import { Cabecera, Aviso, Exito, Spinner, FilaDetalle } from '../components/shared'
 import type {
   AgendaDiaItemDto,
@@ -51,20 +52,329 @@ export type CitaHint = {
   bloqueoId?: string | null
 }
 
+// ── Selector de recursos con buscador (Opción 1+4) ─────────────
+// Buscador con autocompletado + chips de seleccionados +
+// favoritos/recientes por perfil + aviso de novedades.
+// Solo se cargan las agendas de los recursos seleccionados
+// (ver efecto agendaRango).
+const MAX_SUGERENCIAS = 60
+
+/** Minúsculas sin tildes para buscar "Garcia" == "García". */
+function normalizarTexto(s: string) {
+  return (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function SelectorRecursos({
+  profesionales,
+  seleccionados,
+  perfil,
+  onCambiar,
+}: {
+  profesionales: ProfesionalResumenDto[]
+  seleccionados: number[]
+  perfil: PerfilId
+  onCambiar: (ids: number[]) => void
+}) {
+  const [busqueda, setBusqueda] = useState('')
+  const [abierto, setAbierto] = useState(false)
+  const [soloNovedades, setSoloNovedades] = useState(false)
+  const [favoritos, setFavoritos] = useState<number[]>(() => leerIdsPerfil(perfil, 'favoritos'))
+  const [conocidos, setConocidos] = useState<number[]>(() => leerIdsPerfil(perfil, 'conocidos'))
+  const inicializado = useRef(false)
+  const cajaRef = useRef<HTMLDivElement>(null)
+
+  const activos = useMemo(() => profesionales.filter((p) => p.activo), [profesionales])
+  const porId = useMemo(() => new Map(activos.map((p) => [p.id, p])), [activos])
+  const nuevos = useMemo(
+    () => activos.filter((p) => !conocidos.includes(p.id)),
+    [activos, conocidos],
+  )
+
+  // Cierra el desplegable al hacer clic fuera.
+  useEffect(() => {
+    if (!abierto) return
+    function alClicFuera(e: MouseEvent) {
+      if (cajaRef.current && !cajaRef.current.contains(e.target as Node)) setAbierto(false)
+    }
+    document.addEventListener('mousedown', alClicFuera)
+    return () => document.removeEventListener('mousedown', alClicFuera)
+  }, [abierto])
+
+  // Primera carga: registra favoritos/recientes como conocidos para que el
+  // aviso de novedades solo muestre recursos realmente nuevos. La selección
+  // se restaura tal como quedó (ver clave 'seleccion'); aquí no se preselecciona.
+  useEffect(() => {
+    if (inicializado.current || activos.length === 0) return
+    inicializado.current = true
+    const existentes = new Set(activos.map((p) => p.id))
+    const favOk = leerIdsPerfil(perfil, 'favoritos').filter((id) => existentes.has(id))
+    const recOk = leerIdsPerfil(perfil, 'recientes').filter((id) => existentes.has(id))
+    setFavoritos(favOk)
+    setConocidos((prev) => {
+      const todos = Array.from(new Set([...prev, ...favOk, ...recOk]))
+      guardarIdsPerfil(perfil, 'conocidos', todos)
+      return todos
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activos])
+
+  /** Registra uso: sube a recientes y marca como conocidos. */
+  function registrarUso(idsAgregados: number[]) {
+    if (idsAgregados.length === 0) return
+    const previos = leerIdsPerfil(perfil, 'recientes')
+    guardarIdsPerfil(perfil, 'recientes', Array.from(new Set([...idsAgregados, ...previos])).slice(0, 8))
+    setConocidos((prev) => {
+      const sig = Array.from(new Set([...prev, ...idsAgregados]))
+      guardarIdsPerfil(perfil, 'conocidos', sig)
+      return sig
+    })
+  }
+
+  function alternar(id: number) {
+    if (seleccionados.includes(id)) {
+      onCambiar(seleccionados.filter((x) => x !== id))
+    } else {
+      registrarUso([id])
+      onCambiar([...seleccionados, id])
+    }
+    setBusqueda('')
+  }
+
+  function alternarFavorito(id: number) {
+    setFavoritos((prev) => {
+      const sig = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      guardarIdsPerfil(perfil, 'favoritos', sig)
+      return sig
+    })
+  }
+
+  function marcarNovedadesVistas() {
+    const ids = nuevos.map((p) => p.id)
+    setConocidos((prev) => {
+      const sig = Array.from(new Set([...prev, ...ids]))
+      guardarIdsPerfil(perfil, 'conocidos', sig)
+      return sig
+    })
+    setSoloNovedades(false)
+  }
+
+  const termino = normalizarTexto(busqueda.trim())
+  const base = soloNovedades ? nuevos : activos
+  const coincidencias = base.filter((p) => {
+    if (!termino) return true
+    const texto = normalizarTexto(`${p.nombresCompletos} ${p.especialidad} ${p.sede}`)
+    return termino.split(/\s+/).every((t) => texto.includes(t))
+  })
+  const visibles = coincidencias.slice(0, MAX_SUGERENCIAS)
+
+  const seleccionadosDatos = seleccionados
+    .map((id) => porId.get(id))
+    .filter((p): p is ProfesionalResumenDto => Boolean(p))
+  const favoritosRapidos = favoritos
+    .map((id) => porId.get(id))
+    .filter((p): p is ProfesionalResumenDto => Boolean(p))
+    .filter((p) => !seleccionados.includes(p.id))
+
+  return (
+    <div className="mt-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <p className="text-sm font-medium">Recursos</p>
+        {nuevos.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setSoloNovedades((v) => !v)
+              setAbierto(true)
+            }}
+            aria-pressed={soloNovedades}
+            title="Ver recursos nuevos"
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+              soloNovedades
+                ? 'border-amber-500 bg-amber-500 text-white'
+                : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+            }`}
+          >
+            ✨ {nuevos.length} nuevo{nuevos.length === 1 ? '' : 's'}
+          </button>
+        )}
+      </div>
+
+      {/* Buscador con autocompletado */}
+      <div ref={cajaRef} className="relative">
+        <input
+          value={busqueda}
+          onChange={(e) => {
+            setBusqueda(e.target.value)
+            setAbierto(true)
+          }}
+          onFocus={() => setAbierto(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setAbierto(false)
+            if (e.key === 'Enter') {
+              const primero = visibles.find((p) => !seleccionados.includes(p.id)) ?? visibles[0]
+              if (primero) {
+                alternar(primero.id)
+                setAbierto(false)
+              }
+            }
+          }}
+          placeholder="Buscar por nombre, especialidad o sede…"
+          aria-label="Buscar recursos"
+          className="w-full rounded-md border border-border bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary sm:max-w-md"
+        />
+        {abierto && (
+          <div className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-lg sm:max-w-md">
+            {soloNovedades && (
+              <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-[11px]">
+                <span className="font-semibold text-amber-800">Mostrando solo novedades</span>
+                <button
+                  type="button"
+                  onClick={marcarNovedadesVistas}
+                  className="font-medium text-primary underline"
+                >
+                  Marcar como vistos
+                </button>
+              </div>
+            )}
+            {visibles.length === 0 && (
+              <p className="px-3 py-3 text-sm text-foreground/50">Sin coincidencias…</p>
+            )}
+            {visibles.map((p) => {
+              const elegido = seleccionados.includes(p.id)
+              const esNuevo = !conocidos.includes(p.id)
+              const esFav = favoritos.includes(p.id)
+              return (
+                <div key={p.id} className="flex items-center gap-1 px-2 py-0.5 hover:bg-muted">
+                  <button
+                    type="button"
+                    onClick={() => alternar(p.id)}
+                    aria-pressed={elegido}
+                    className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1.5 text-left"
+                  >
+                    <span aria-hidden="true" className="text-sm">{elegido ? '☑' : '☐'}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{p.nombresCompletos}</span>
+                      {p.especialidad && (
+                        <span className="block truncate text-[11px] text-foreground/60">
+                          {p.especialidad}{p.sede ? ` · ${p.sede}` : ''}
+                        </span>
+                      )}
+                    </span>
+                    {esNuevo && (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                        Nuevo
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => alternarFavorito(p.id)}
+                    aria-label={`Favorito ${p.nombresCompletos}`}
+                    aria-pressed={esFav}
+                    title={esFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                    className="shrink-0 px-1.5 py-1 text-base leading-none text-amber-500"
+                  >
+                    {esFav ? '★' : '☆'}
+                  </button>
+                </div>
+              )
+            })}
+            {coincidencias.length > visibles.length && (
+              <p className="px-3 py-1.5 text-[11px] text-foreground/50">
+                +{coincidencias.length - visibles.length} más… refine la búsqueda
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Chips de seleccionados */}
+      {seleccionadosDatos.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {seleccionadosDatos.map((p) => {
+            const esFav = favoritos.includes(p.id)
+            return (
+              <span
+                key={p.id}
+                className="inline-flex items-center gap-0.5 rounded-full border border-primary bg-primary/10 py-1 pl-3 pr-1 text-xs font-medium"
+              >
+                {p.nombresCompletos}
+                {p.especialidad && <span className="opacity-70"> — {p.especialidad}</span>}
+                <button
+                  type="button"
+                  onClick={() => alternarFavorito(p.id)}
+                  aria-label={`Favorito ${p.nombresCompletos}`}
+                  aria-pressed={esFav}
+                  className="px-1 text-sm leading-none text-amber-500"
+                >
+                  {esFav ? '★' : '☆'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => alternar(p.id)}
+                  aria-label={`Quitar ${p.nombresCompletos}`}
+                  className="rounded-full px-1.5 leading-none hover:bg-primary/20"
+                >
+                  ✕
+                </button>
+              </span>
+            )
+          })}
+          {seleccionadosDatos.length > 1 && (
+            <button
+              type="button"
+              onClick={() => onCambiar([])}
+              className="text-[11px] text-foreground/60 underline hover:text-foreground"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Acceso rápido a favoritos no seleccionados */}
+      {favoritosRapidos.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-foreground/60">Favoritos:</span>
+          {favoritosRapidos.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => {
+                registrarUso([p.id])
+                onCambiar([...seleccionados, p.id])
+              }}
+              className="rounded-full border border-border px-2 py-0.5 text-[11px] hover:border-primary/50"
+            >
+              + {p.nombresCompletos}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Componentes ─────────────────────────────────────────────
 
 export function AgendaView({
   onCrearCita,
   fechaInicial,
   profesionalesIniciales,
+  perfil,
 }: {
   onCrearCita?: (hint: CitaHint) => void
   fechaInicial?: string
   profesionalesIniciales?: number[]
+  perfil: PerfilId
 }) {
   const { t, tf } = useCatalogo()
   const [vista, setVista] = useState<VistaAgenda>('diario')
-  const [profIds, setProfIds] = useState<number[]>(profesionalesIniciales ?? [])
+  // Restaura la última selección del perfil tal como quedó (recarga o
+  // regreso desde otra función); base para futuros perfiles por operador.
+  const [profIds, setProfIds] = useState<number[]>(
+    () => profesionalesIniciales ?? leerIdsPerfil(perfil, 'seleccion'),
+  )
   const [fecha, setFecha] = useState(fechaInicial ?? hoyISO())
   const [desdeLista, setDesdeLista] = useState(lunesDeLaSemana(hoyISO()))
   const [hastaLista, setHastaLista] = useState(hoyISO())
@@ -89,6 +399,23 @@ export function AgendaView({
     if (fechaInicial) setFecha(fechaInicial)
     if (profesionalesIniciales?.length) setProfIds(profesionalesIniciales)
   }, [fechaInicial, profesionalesIniciales])
+
+  // Depura la selección contra la lista real (descarta borrados/inactivos).
+  useEffect(() => {
+    if (profesionales.length === 0) return
+    setProfIds((prev) => {
+      const validos = prev.filter((id) => {
+        const p = profesionales.find((x) => x.id === id)
+        return p && p.activo
+      })
+      return validos.length === prev.length ? prev : validos
+    })
+  }, [profesionales])
+
+  // Persiste cada cambio para restaurar al recargar o al volver de otra función.
+  useEffect(() => {
+    guardarIdsPerfil(perfil, 'seleccion', profIds)
+  }, [profIds, perfil])
 
   const [desde, hasta] = useMemo(() => {
     if (vista === 'semanal') {
@@ -142,10 +469,6 @@ export function AgendaView({
       .catch(() => setSlotsPorProf({}))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profIds, desde, vista, refresh])
-
-  function toggleProf(id: number) {
-    setProfIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-  }
 
   function toggleEstado(id: number) {
     setEstadosActivos((prev) =>
@@ -308,28 +631,13 @@ export function AgendaView({
           </button>
         </div>
 
-        {/* Profesionales (multi-recurso a demanda) */}
-        <div className="mt-3">
-          <p className="mb-2 text-sm font-medium">{t('LabelProfesionales')}</p>
-          <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
-            {profesionales.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => toggleProf(p.id)}
-                aria-pressed={profIds.includes(p.id)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  profIds.includes(p.id)
-                    ? 'border-primary bg-primary text-white'
-                    : 'border-border bg-white text-foreground/80 hover:border-primary/50'
-                }`}
-              >
-                {p.nombresCompletos}
-                {p.especialidad && <span className="opacity-70"> — {p.especialidad}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Recursos: buscador + chips + favoritos (carga diferida) */}
+        <SelectorRecursos
+          profesionales={profesionales}
+          seleccionados={profIds}
+          perfil={perfil}
+          onCambiar={setProfIds}
+        />
 
         {/* Filtros por estado */}
         <div className="mt-3 flex flex-wrap items-center gap-2">

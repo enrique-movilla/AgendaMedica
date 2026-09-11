@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react'
 import { api } from './lib/api'
+import { PERFILES, leerPerfilActivo, guardarPerfilActivo, type PerfilId } from './lib/perfil'
 import VentanaConfigBusqueda from './components/VentanaConfigBusqueda'
 import { useCatalogo } from './context/CatalogoContext'
 import { AgendaView } from './views/AgendaView'
@@ -26,6 +27,8 @@ const NAV: { id: Vista; clave: string }[] = [
 export default function App() {
   const { t } = useCatalogo()
   const [vista, setVista] = useState<Vista>('agenda')
+  // Perfil simulado del MVP (mismos permisos; solo cambia el ambiente).
+  const [perfil, setPerfil] = useState<PerfilId>(() => leerPerfilActivo())
   const [configAbierta, setConfigAbierta] = useState(false)
   const [citaHint, setCitaHint] = useState<CitaHint | null>(null)
   const [agendaEnfoque, setAgendaEnfoque] = useState<{
@@ -44,6 +47,13 @@ export default function App() {
       void api.liberarBloqueo(citaHint.bloqueoId).catch(() => {})
     }
     setVista(v)
+  }
+
+  /** Cambia de operador simulado y persiste cuál está activo. */
+  function cambiarPerfil(p: PerfilId) {
+    if (p === perfil) return
+    guardarPerfilActivo(p)
+    setPerfil(p)
   }
 
   function abandonarNuevaCita() {
@@ -117,12 +127,48 @@ export default function App() {
             >
               Identidad de Aplicación
             </button>
+
+            {/* Perfiles simulados del MVP (mismos permisos) */}
+            <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
+              Perfil (simulación)
+            </p>
+            {PERFILES.map((p) => {
+              const activo = perfil === p.id
+              const esU1 = p.id === 'u1'
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => cambiarPerfil(p.id)}
+                  aria-pressed={activo}
+                  title={activo ? `${p.nombre} (activo)` : `Cambiar a ${p.nombre}`}
+                  className={`mt-1 flex w-full items-center gap-2 rounded-lg border-l-4 px-3 py-2 text-left text-sm font-medium transition-colors ${
+                    activo
+                      ? esU1
+                        ? 'border-sky-500 bg-sky-50 text-sky-900'
+                        : 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                      : 'border-transparent text-foreground/80 hover:bg-muted'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block h-2.5 w-2.5 rounded-full ${
+                      activo ? (esU1 ? 'bg-sky-500' : 'bg-emerald-500') : 'bg-foreground/20'
+                    }`}
+                  />
+                  {p.nombre}
+                  {activo && <span className="ml-auto text-[11px] font-semibold">● activo</span>}
+                </button>
+              )
+            })}
           </div>
         </aside>
 
         <main className="flex-1 px-6 py-6 sm:px-8">
           {vista === 'agenda' && (
             <AgendaView
+              key={perfil}
+              perfil={perfil}
               fechaInicial={agendaEnfoque?.fecha}
               profesionalesIniciales={agendaEnfoque?.profesionalesIds}
               onCrearCita={async (hint) => {
