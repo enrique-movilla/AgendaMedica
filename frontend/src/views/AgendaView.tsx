@@ -24,7 +24,7 @@ import {
   pxHora,
   horasEje,
 } from '../lib/constants'
-import { leerIdsPerfil, guardarIdsPerfil, type PerfilId } from '../lib/perfil'
+import { leerIdsPerfil, guardarIdsPerfil, hayAmbienteGuardado, type PerfilId } from '../lib/perfil'
 import { Cabecera, Aviso, Exito, Spinner, FilaDetalle } from '../components/shared'
 import type {
   AgendaDiaItemDto,
@@ -378,7 +378,17 @@ export function AgendaView({
   const [fecha, setFecha] = useState(fechaInicial ?? hoyISO())
   const [desdeLista, setDesdeLista] = useState(lunesDeLaSemana(hoyISO()))
   const [hastaLista, setHastaLista] = useState(hoyISO())
-  const [estadosActivos, setEstadosActivos] = useState<number[]>(ESTADOS_CITA.map((e) => e.id))
+  // Filtros por estado: se restauran del ambiente del perfil (igual que
+  // la selección de recursos). Sin nada guardado, arrancan todos activos.
+  const [estadosActivos, setEstadosActivos] = useState<number[]>(() => {
+    const todos = ESTADOS_CITA.map((e) => e.id)
+    const guardados = leerIdsPerfil(perfil, 'estados')
+    if (guardados.length === 0) {
+      return hayAmbienteGuardado(perfil, 'estados') ? [] : todos
+    }
+    const validos = guardados.filter((id) => todos.includes(id))
+    return validos.length > 0 ? validos : todos
+  })
   const [items, setItems] = useState<AgendaDiaItemDto[]>([])
   const [slotsPorProf, setSlotsPorProf] = useState<Record<number, SlotLibreDto[]>>({})
   const [cargando, setCargando] = useState(false)
@@ -417,6 +427,11 @@ export function AgendaView({
     guardarIdsPerfil(perfil, 'seleccion', profIds)
   }, [profIds, perfil])
 
+  // Persiste los filtros por estado en el ambiente del perfil.
+  useEffect(() => {
+    guardarIdsPerfil(perfil, 'estados', estadosActivos)
+  }, [estadosActivos, perfil])
+
   const [desde, hasta] = useMemo(() => {
     if (vista === 'semanal') {
       const lun = lunesDeLaSemana(fecha)
@@ -442,12 +457,16 @@ export function AgendaView({
     setSel(null)
     api
       .agendaRango({ profesionalesIds: profIds, fechaDesde: desde, fechaHasta: hasta })
-      .then((r) =>
-        setItems(r.filter((i) => estadosActivos.includes(i.estadoId))),
-      )
+      .then((r) => setItems(r))
       .catch((e) => setError(msgError(e)))
       .finally(() => setCargando(false))
-  }, [profIds, desde, hasta, estadosActivos, refresh])
+  }, [profIds, desde, hasta, refresh])
+
+  // Filtro por estado en memoria: alternar un chip no refetchea.
+  const itemsVisibles = useMemo(
+    () => items.filter((i) => estadosActivos.includes(i.estadoId)),
+    [items, estadosActivos],
+  )
 
   useEffect(() => {
     if (cargando || profIds.length === 0) return
@@ -495,7 +514,7 @@ export function AgendaView({
     .filter((p): p is ProfesionalResumenDto => Boolean(p))
     .map((profesional) => ({
       profesional,
-      items: items
+      items: itemsVisibles
         .filter((i) => i.profesionalId === profesional.id)
         .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)),
     }))
@@ -704,7 +723,7 @@ export function AgendaView({
             )}
             {vista === 'mensual' && (
               <TimelineMensual
-                items={items}
+                items={itemsVisibles}
                 fecha={fecha}
                 onDia={(d) => {
                   setVista('diario')
@@ -713,7 +732,7 @@ export function AgendaView({
                 onSeleccionar={(i) => setSel(i)}
               />
             )}
-            {vista === 'lista' && <VistaLista items={items} onSeleccionar={(i) => setSel(i)} />}
+            {vista === 'lista' && <VistaLista items={itemsVisibles} onSeleccionar={(i) => setSel(i)} />}
           </div>
 
           <aside className="min-w-0">

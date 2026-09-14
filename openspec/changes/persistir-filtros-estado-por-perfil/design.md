@@ -39,13 +39,14 @@ pooler de Supabase en cada toggle.
 
 ### Decisión 3: valor inicial = guardado o todos
 
-`useState(() => leerIdsPerfil(perfil, 'estados'))` con fallback a
-`ESTADOS_CITA.map(id)` cuando el array guardado esté vacío (vacío =
-"nunca guardó", no "todo desactivado"; el toggle impide de todos modos
-dejar cero activos solo si el usuario los quita uno a uno — ese caso sí
-se persiste tal cual). Al cambiar de perfil (`key={perfil}` en `App.tsx`
+`useState(() => ...)` con `leerIdsPerfil(perfil, 'estados')`, depurando
+huérfanos contra `ESTADOS_CITA`. Para distinguir "nunca guardó" (→ todos)
+de "todo desactivado a propósito" (→ `[]` respetado) se usa el helper
+nuevo `hayAmbienteGuardado(perfil, clave)` en `perfil.ts` (revisa clave
+propia + heredada); si hay guardado no vacío pero todo huérfano, se
+recupera a todos. Al cambiar de perfil (`key={perfil}` en `App.tsx`
 remonta la vista) se re-lee el ambiente del nuevo perfil. Efecto aparte
-persiste cada cambio, igual que `profIds` (`:415-418`).
+persiste cada cambio, igual que `profIds`.
 
 ## Risks / Trade-offs
 

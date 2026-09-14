@@ -25,6 +25,7 @@ const LEGADO: Record<string, string> = {
   conocidos: 'agenda:recursos:conocidos',
   recientes: 'agenda:recursos:recientes',
   seleccion: 'agenda:recursos:seleccion',
+  estados: 'agenda:recursos:estados',
 }
 
 export type ClaveAmbiente = keyof typeof LEGADO
@@ -68,6 +69,19 @@ export function leerIdsPerfil(perfil: PerfilId, clave: ClaveAmbiente): number[] 
   if (propio !== null) return propio
   if (perfil === 'u1') return leer(LEGADO[clave]) ?? []
   return []
+}
+
+/** Indica si existe ambiente guardado (propio o heredado) para el perfil.
+ *  Permite distinguir "nunca guardó" (usar valores por defecto) de un
+ *  guardado explícito aunque sea vacío (respetarlo tal cual). */
+export function hayAmbienteGuardado(perfil: PerfilId, clave: ClaveAmbiente): boolean {
+  try {
+    if (localStorage.getItem(clavePerfil(perfil, clave)) !== null) return true
+    if (perfil === 'u1' && localStorage.getItem(LEGADO[clave]) !== null) return true
+    return false
+  } catch {
+    return false
+  }
 }
 
 /** Guarda una clave del ambiente del perfil. */
