@@ -3,11 +3,16 @@ schema: spec-driven
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Proyecto Agenda — .NET 8 + EF Core + PostgreSQL en Supabase + React + Vite.
+  Todo el código (identificadores, comentarios, códigos de error) está en español.
+  Para tablas nuevas en Supabase: usar DDL manual idempotente y activar siempre
+  RLS con política pública para anon (ALTER TABLE public."X" ENABLE ROW LEVEL
+  SECURITY + DROP POLICY IF EXISTS + CREATE POLICY "Permitir acceso público
+  total" FOR ALL TO anon USING (true) WITH CHECK (true)). Usar schema public e
+  identificadores entrecomillados. No aplicar RLS a __EFMigrationsHistory.
+  La política abierta es el default de desarrollo; en Fase 5/6 se endurece por
+  rol/dueño con auth.uid().
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

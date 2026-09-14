@@ -55,6 +55,7 @@ Solución .NET 8 para la gestión de citas médicas. Todo el código (identifica
 - **Jobs en segundo plano se inician con la app**: `OutboxProcessor` (sincroniza citas a Teams vía Graph cada 15s, reintenta hasta 5 veces con backoff exponencial) y `RecordatorioProcessor` (recordatorios cada hora). Son resilientes y loguean warnings; no deben romper el arranque si Teams/notificaciones no están configurados.
 - **Integraciones externas con placeholders**: `AzureAd`, `Graph`, `Smtp`, `WhatsApp`, `Sms` en `appsettings.json` son credenciales de ejemplo. El desarrollo local funciona solo con Supabase; no rellenes ni elimines esas secciones.
 - En builds `DEBUG`, EF habilita `EnableSensitiveDataLogging` y loguea SQL a consola.
+- **RLS en Supabase (norma permanente)**: toda tabla nueva se crea con DDL manual idempotente que incluya `ALTER TABLE public."X" ENABLE ROW LEVEL SECURITY;` + `DROP POLICY IF EXISTS "Permitir acceso público total" ON public."X";` + `CREATE POLICY "Permitir acceso público total" ON public."X" FOR ALL TO anon USING (true) WITH CHECK (true);`. Usar schema `public` e identificadores entrecomillados. No aplicar RLS a `__EFMigrationsHistory`. La política abierta es el default de desarrollo; en Fase 5/6 (autenticación) se endurece por rol/dueño con `auth.uid()`.
 
 ## Punto de reanudo (Estado de la sesión)
 
