@@ -10,9 +10,9 @@
 
 ## 3. Verificación de integración
 
-- [ ] 3.1 Verificar el ciclo completo en `http://localhost:5173`: desactivar estados, recargar, cambiar de perfil y volver, pulsar "Todos", confirmando que las 4 vistas (diario/semanal/mensual/lista) respetan el filtro
+- [x] 3.1 Verificar el ciclo completo en `http://localhost:5173`: desactivar estados, recargar, cambiar de perfil y volver, pulsar "Todos", confirmando que las 4 vistas (diario/semanal/mensual/lista) respetan el filtro
 
 ## 4. Vista y restablecimiento
 
 - [x] 4.1 Persistir la pestaña `vista` por perfil (`leerVistaPerfil`/`guardarVistaPerfil` en `perfil.ts`, validando las 4 pestañas) y verificar con `npm.cmd run build` en `frontend/` que compila sin errores
-- [ ] 4.2 Agregar botón "Restablecer" (estados=todos, vista=diario, fecha=hoy; sin tocar recursos/favoritos/frecuentes) y verificar en `http://localhost:5173` que recarga conserva el estado restablecido
+- [x] 4.2 Agregar botón "Restablecer" (estados=todos, vista=diario, fecha=hoy; sin tocar recursos/favoritos/frecuentes) y verificar en `http://localhost:5173` que recarga conserva el estado restablecido
