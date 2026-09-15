@@ -92,3 +92,35 @@ export function guardarIdsPerfil(perfil: PerfilId, clave: ClaveAmbiente, ids: nu
     /* almacenamiento no disponible */
   }
 }
+
+// ── Pestaña de vista (texto, no ids) ────────────────────────────
+// La vista (diario/semanal/mensual/lista) es string y no cabe en el
+// mecanismo de number[]; usa sus propias claves con la misma política
+// de perfiles y migración de legado al Usuario 1.
+
+const LS_VISTA_LEGADO = 'agenda:recursos:vista'
+
+function claveVista(perfil: PerfilId): string {
+  return `agenda:${perfil}:recursos:vista`
+}
+
+/** Lee la pestaña guardada del perfil (null si nunca se guardó). */
+export function leerVistaPerfil(perfil: PerfilId): string | null {
+  try {
+    const propio = localStorage.getItem(claveVista(perfil))
+    if (propio !== null) return propio
+    if (perfil === 'u1') return localStorage.getItem(LS_VISTA_LEGADO)
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** Guarda la pestaña del perfil. */
+export function guardarVistaPerfil(perfil: PerfilId, vista: string): void {
+  try {
+    localStorage.setItem(claveVista(perfil), vista)
+  } catch {
+    /* almacenamiento no disponible */
+  }
+}

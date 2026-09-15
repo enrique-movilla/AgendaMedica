@@ -48,8 +48,25 @@ recupera a todos. Al cambiar de perfil (`key={perfil}` en `App.tsx`
 remonta la vista) se re-lee el ambiente del nuevo perfil. Efecto aparte
 persiste cada cambio, igual que `profIds`.
 
-## Risks / Trade-offs
+### Decisión 4: vista como texto con validación
 
+La vista es `string`, no `number[]`, así que no cabe en
+`leerIdsPerfil`/`guardarIdsPerfil`: se añaden `leerVistaPerfil` /
+`guardarVistaPerfil` en `perfil.ts` (clave
+`agenda:{u1|u2}:recursos:vista` + legado `agenda:recursos:vista` → `u1`).
+Al leer se valida contra las 4 pestañas; cualquier otro valor → diario.
+Efecto de persistencia igual que el de filtros.
+
+### Decisión 5: botón "Restablecer" con literal
+
+`setEstadosActivos(todos) + setVista('diario') + setFecha(hoy)` (+ rango
+de lista a sus iniciales); los efectos existentes persisten el resultado
+y la selección de recursos/favoritos/frecuentes no se toca. Texto como
+literal `'Restablecer'` (precedente: `'Limpiar'` en `SelectorRecursos`
+del mismo archivo) para evitar el ritual completo de clave de catálogo
+(backend + seeds + Supabase) por un solo botón.
+
+## Risks / Trade-offs
 - [IDs de estado eliminados del catálogo quedan huérfanos en el array
   guardado] → filtrar contra `ESTADOS_CITA` vigentes al leer, como ya se
   hace con profesionales borrados (`:403-413).

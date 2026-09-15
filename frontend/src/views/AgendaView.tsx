@@ -24,7 +24,7 @@ import {
   pxHora,
   horasEje,
 } from '../lib/constants'
-import { leerIdsPerfil, guardarIdsPerfil, hayAmbienteGuardado, type PerfilId } from '../lib/perfil'
+import { leerIdsPerfil, guardarIdsPerfil, hayAmbienteGuardado, leerVistaPerfil, guardarVistaPerfil, type PerfilId } from '../lib/perfil'
 import { Cabecera, Aviso, Exito, Spinner, FilaDetalle } from '../components/shared'
 import type {
   AgendaDiaItemDto,
@@ -369,7 +369,11 @@ export function AgendaView({
   perfil: PerfilId
 }) {
   const { t, tf } = useCatalogo()
-  const [vista, setVista] = useState<VistaAgenda>('diario')
+  // Pestaña restaurada del ambiente del perfil; valor inválido → diario.
+  const [vista, setVista] = useState<VistaAgenda>(() => {
+    const g = leerVistaPerfil(perfil)
+    return g === 'diario' || g === 'semanal' || g === 'mensual' || g === 'lista' ? g : 'diario'
+  })
   // Restaura la última selección del perfil tal como quedó (recarga o
   // regreso desde otra función); base para futuros perfiles por operador.
   const [profIds, setProfIds] = useState<number[]>(
@@ -432,6 +436,11 @@ export function AgendaView({
     guardarIdsPerfil(perfil, 'estados', estadosActivos)
   }, [estadosActivos, perfil])
 
+  // Persiste la pestaña activa en el ambiente del perfil.
+  useEffect(() => {
+    guardarVistaPerfil(perfil, vista)
+  }, [vista, perfil])
+
   const [desde, hasta] = useMemo(() => {
     if (vista === 'semanal') {
       const lun = lunesDeLaSemana(fecha)
@@ -493,6 +502,17 @@ export function AgendaView({
     setEstadosActivos((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
+  }
+
+  // Vuelve a ventana limpia (filtros=todos, vista=diario, fecha=hoy) sin
+  // tocar la selección de recursos, favoritos ni frecuentes. Los efectos
+  // existentes persisten el resultado en el ambiente del perfil.
+  function restablecerVista() {
+    setEstadosActivos(ESTADOS_CITA.map((x) => x.id))
+    setVista('diario')
+    setFecha(hoyISO())
+    setDesdeLista(lunesDeLaSemana(hoyISO()))
+    setHastaLista(hoyISO())
   }
 
   async function reprogramarArrastre(citaId: number, fechaHoraNueva: string) {
@@ -682,6 +702,13 @@ export function AgendaView({
             className="rounded-full border border-border px-2 py-0.5 text-[11px] text-foreground/60 hover:bg-muted"
           >
             {t('BtnTodos')}
+          </button>
+          <button
+            type="button"
+            onClick={restablecerVista}
+            className="rounded-full border border-border px-2 py-0.5 text-[11px] text-foreground/60 hover:bg-muted"
+          >
+            Restablecer
           </button>
         </div>
       </div>

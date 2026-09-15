@@ -17,13 +17,18 @@ persiste por perfil; los filtros deben comportarse igual.
 - El filtrado de items pasa a aplicarse en memoria sobre lo ya cargado, sin
   refetch al alternar un estado (el fetch solo depende de
   perfil/recursos/rango/refresh).
+- **Ampliación:** la pestaña de vista (diario/semanal/mensual/lista) también
+  persiste por perfil, y un botón "Restablecer" devuelve la ventana a su
+  estado inicial (estados=todos, vista=diario, fecha=hoy) sin tocar la
+  selección de recursos, favoritos ni frecuentes.
 
 ## Capabilities
 
 ### New Capabilities
 
 - `filtros-estado`: filtrado de la agenda por estado de cita con
-  persistencia por perfil de operador.
+  persistencia por perfil de operador, incluyendo pestaña de vista y
+  restablecimiento a estado inicial.
 
 ### Modified Capabilities
 

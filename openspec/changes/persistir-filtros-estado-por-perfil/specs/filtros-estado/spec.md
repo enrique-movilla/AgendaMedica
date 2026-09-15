@@ -45,3 +45,33 @@ cambios de perfil.
 - **WHEN** el perfil activo nunca guardó filtros
 - **THEN** la agenda muestra todos los estados (comportamiento actual sin
   cambios)
+
+### Requirement: Persistir pestaña de vista
+
+El sistema SHALL conservar la pestaña de vista activa
+(diario/semanal/mensual/lista) de cada perfil de operador, restaurándola al
+volver a la agenda.
+
+#### Scenario: Recarga conserva la pestaña
+
+- **WHEN** el operador está en vista semanal y recarga la página
+- **THEN** la agenda se abre en vista semanal
+
+#### Scenario: Valor guardado inválido
+
+- **WHEN** el valor guardado no es una pestaña válida
+- **THEN** la agenda se abre en vista diario
+
+### Requirement: Restablecer ventana limpia
+
+El sistema SHALL ofrecer un botón "Restablecer" que devuelva la ventana a
+su estado inicial (todos los estados activos, vista diario, fecha de hoy)
+sin modificar la selección de recursos, los favoritos ni los frecuentes.
+
+#### Scenario: Operador restablece
+
+- **WHEN** el operador pulsa "Restablecer" tras cambiar filtros, pestaña y
+  fecha
+- **THEN** la agenda muestra todos los estados en vista diario con fecha de
+  hoy, manteniendo los recursos seleccionados
+- **AND** al recargar, ese estado inicial restablecido es el que se conserva
