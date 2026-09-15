@@ -1,0 +1,79 @@
+# filtros-estado Specification
+
+## Purpose
+
+Permite a cada operador filtrar la agenda por estado de cita y conservar su
+selección entre recargas y cambios de perfil, sin reconfigurarla cada vez.
+
+## Requirements
+
+### Requirement: Filtrar agenda por estado
+
+La agenda SHALL mostrar solo las citas cuyo estado esté incluido en el
+conjunto de estados activos elegido por el operador, en todas las vistas
+(diario, semanal, mensual y lista).
+
+#### Scenario: Operador oculta un estado
+
+- **WHEN** el operador desactiva el estado "Cancelada"
+- **THEN** las citas canceladas desaparecen de la vista actual sin recargar
+  datos del servidor
+
+#### Scenario: Operador restaura todos los estados
+
+- **WHEN** el operador pulsa "Todos"
+- **THEN** la vista vuelve a mostrar las citas de todos los estados
+
+### Requirement: Persistir filtros por perfil de operador
+
+El sistema SHALL conservar el conjunto de estados activos de cada perfil de
+operador (`u1`, `u2`) en el navegador, de modo que sobreviva a recargas y a
+cambios de perfil.
+
+#### Scenario: Recarga conserva filtros
+
+- **WHEN** el operador desactiva uno o más estados y recarga la página
+- **THEN** la agenda se abre con exactamente esos estados activos
+
+#### Scenario: Perfiles independientes
+
+- **WHEN** el Usuario 1 tiene activos solo "Programada" y "Confirmada", y se
+  cambia al Usuario 2
+- **THEN** el Usuario 2 ve sus propios filtros (todos los estados la primera
+  vez), sin afectar los del Usuario 1
+
+#### Scenario: Sin guardado previo
+
+- **WHEN** el perfil activo nunca guardó filtros
+- **THEN** la agenda muestra todos los estados (comportamiento actual sin
+  cambios)
+
+### Requirement: Persistir pestaña de vista
+
+El sistema SHALL conservar la pestaña de vista activa
+(diario/semanal/mensual/lista) de cada perfil de operador, restaurándola al
+volver a la agenda.
+
+#### Scenario: Recarga conserva la pestaña
+
+- **WHEN** el operador está en vista semanal y recarga la página
+- **THEN** la agenda se abre en vista semanal
+
+#### Scenario: Valor guardado inválido
+
+- **WHEN** el valor guardado no es una pestaña válida
+- **THEN** la agenda se abre en vista diario
+
+### Requirement: Restablecer ventana limpia
+
+El sistema SHALL ofrecer un botón "Restablecer" que devuelva la ventana a
+su estado inicial (todos los estados activos, vista diario, fecha de hoy)
+sin modificar la selección de recursos, los favoritos ni los frecuentes.
+
+#### Scenario: Operador restablece
+
+- **WHEN** el operador pulsa "Restablecer" tras cambiar filtros, pestaña y
+  fecha
+- **THEN** la agenda muestra todos los estados en vista diario con fecha de
+  hoy, manteniendo los recursos seleccionados
+- **AND** al recargar, ese estado inicial restablecido es el que se conserva
