@@ -29,7 +29,7 @@ const NUM_A_CLAVE: Record<number, string> = {
   80: 'AccionConfirmar', 81: 'AccionIniciarAtencion', 82: 'AccionReprogramar',
   83: 'AccionCancelarCita', 84: 'DetallePaciente', 85: 'DetalleProfesional',
   86: 'DetalleTipoCita', 87: 'DetalleAseguradora', 88: 'DetalleRegimen',
-  89: 'DetalleMotivo', 90: 'DetalleObservaciones',
+  89: 'DetalleMotivo', 90: 'DetalleObservaciones', 91: 'AccionDuplicar',
 }
 
 // Runtime array of ClaveTermino keys (since ClaveTermino is a TS type, not a runtime enum)

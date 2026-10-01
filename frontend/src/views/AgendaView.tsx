@@ -398,6 +398,8 @@ export function AgendaView({
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sel, setSel] = useState<AgendaDiaItemDto | null>(null)
+  // Acción prearmada cuando se llega al detalle desde el menú de 3 puntos.
+  const [accionInicial, setAccionInicial] = useState<'reprogramar' | 'cancelar' | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [buscandoTurno, setBuscandoTurno] = useState(false)
   const [turnoEncontrado, setTurnoEncontrado] = useState<string | null>(null)
@@ -527,6 +529,25 @@ export function AgendaView({
     } catch (e) {
       setError(msgError(e))
     }
+  }
+
+  // Acciones directas del menú de 3 puntos: abren el detalle con la
+  // acción ya prearmada (mismo flujo y validaciones que el panel).
+  function accionDesdeMenu(item: AgendaDiaItemDto, accion: 'reprogramar' | 'cancelar') {
+    setAccionInicial(accion)
+    setSel(item)
+  }
+
+  // Duplicar: abre Nueva asignación con los datos origen precargados
+  // (el paciente lo elige el operador; el guardado valida traslape).
+  function duplicarDesdeMenu(item: AgendaDiaItemDto) {
+    const tipo = tiposCita.find((tc) => tc.nombre === item.tipoCita)
+    onCrearCita?.({
+      fechaHora: `${item.fecha}T${item.horaInicio}:00`,
+      profesionalId: item.profesionalId,
+      tipoCitaId: tipo?.id,
+      motivo: item.motivoConsulta ?? undefined,
+    })
   }
 
   const filas: FilaAgenda[] = profIds
@@ -738,6 +759,8 @@ export function AgendaView({
                 onSeleccionar={(i) => setSel(i)}
                 onCrearCita={onCrearCita}
                 onReprogramar={(citaId, fhNueva) => reprogramarArrastre(citaId, fhNueva)}
+                onAccion={accionDesdeMenu}
+                onDuplicar={duplicarDesdeMenu}
               />
             )}
             {vista === 'semanal' && (
@@ -765,7 +788,8 @@ export function AgendaView({
           <aside className="min-w-0">
             <PanelDetalleCita
               cita={sel}
-              onCerrar={() => setSel(null)}
+              accionInicial={accionInicial}
+              onCerrar={() => { setSel(null); setAccionInicial(null) }}
               onChange={() => setRefresh((r) => r + 1)}
             />
           </aside>
@@ -783,6 +807,8 @@ function TimelineDia({
   onSeleccionar,
   onCrearCita,
   onReprogramar,
+  onAccion,
+  onDuplicar,
 }: {
   filas: FilaAgenda[]
   slotsPorProf: Record<number, SlotLibreDto[]>
@@ -790,6 +816,8 @@ function TimelineDia({
   onSeleccionar: (i: AgendaDiaItemDto) => void
   onCrearCita?: (hint: CitaHint) => void
   onReprogramar?: (citaId: number, fechaHoraNueva: string) => void | Promise<void>
+  onAccion: (item: AgendaDiaItemDto, accion: 'reprogramar' | 'cancelar') => void
+  onDuplicar: (item: AgendaDiaItemDto) => void
 }) {
   const { t } = useCatalogo()
   const todas = filas.flatMap((f) => f.items)
@@ -899,7 +927,12 @@ function TimelineDia({
                       className="absolute"
                       style={{ left, width: ancho, minWidth: 20, top: 4 }}
                     >
-                      <MenuTresPuntos onDetalle={() => onSeleccionar(i)} />
+                      <MenuTresPuntos
+                        item={i}
+                        onDetalle={() => onSeleccionar(i)}
+                        onAccion={onAccion}
+                        onDuplicar={onDuplicar}
+                      />
                       <button
                         type="button"
                         draggable={REPROGRAMABLES.has(i.estadoId) && Boolean(onReprogramar)}
@@ -944,8 +977,13 @@ function TimelineDia({
   )
 }
 
-/** Menú contextual de 3 puntos por bloque. */
-function MenuTresPuntos({ onDetalle }: { onDetalle: () => void }) {
+/** Menú contextual de 3 puntos por bloque (acciones directas). */
+function MenuTresPuntos({ item, onDetalle, onAccion, onDuplicar }: {
+  item: AgendaDiaItemDto
+  onDetalle: () => void
+  onAccion: (item: AgendaDiaItemDto, accion: 'reprogramar' | 'cancelar') => void
+  onDuplicar: (item: AgendaDiaItemDto) => void
+}) {
   const { t } = useCatalogo()
   const [abierto, setAbierto] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -957,6 +995,15 @@ function MenuTresPuntos({ onDetalle }: { onDetalle: () => void }) {
     document.addEventListener('mousedown', onFuera)
     return () => document.removeEventListener('mousedown', onFuera)
   }, [])
+
+  // Mismas reglas de visibilidad que el panel detalle.
+  const puedeReprogramar = [1, 2, 7].includes(item.estadoId)
+  const puedeCancelar = [1, 2, 3, 7].includes(item.estadoId)
+
+  function elegir(fn: () => void) {
+    setAbierto(false)
+    fn()
+  }
 
   return (
     <div ref={wrapRef} className="absolute -top-1 right-1 z-30">
@@ -976,23 +1023,35 @@ function MenuTresPuntos({ onDetalle }: { onDetalle: () => void }) {
           <button
             type="button"
             className="block w-full px-3 py-1.5 text-left text-xs hover:bg-muted"
-            onClick={() => {
-              setAbierto(false)
-              onDetalle()
-            }}
+            onClick={() => elegir(onDetalle)}
           >
             {t('AccionVerDetalle')}
           </button>
+          {puedeReprogramar && (
+            <button
+              type="button"
+              className="block w-full px-3 py-1.5 text-left text-xs hover:bg-muted"
+              onClick={() => elegir(() => onAccion(item, 'reprogramar'))}
+            >
+              {t('AccionReprogramar')}
+            </button>
+          )}
           <button
             type="button"
-            className="block w-full px-3 py-1.5 text-left text-xs text-rose-700 hover:bg-rose-50"
-            onClick={() => {
-              setAbierto(false)
-              onDetalle()
-            }}
+            className="block w-full px-3 py-1.5 text-left text-xs hover:bg-muted"
+            onClick={() => elegir(() => onDuplicar(item))}
           >
-            {t('AccionEstado')}
+            {t('AccionDuplicar') ?? 'Duplicar'}
           </button>
+          {puedeCancelar && (
+            <button
+              type="button"
+              className="block w-full px-3 py-1.5 text-left text-xs text-rose-700 hover:bg-rose-50"
+              onClick={() => elegir(() => onAccion(item, 'cancelar'))}
+            >
+              {t('AccionCancelarCita')}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1249,10 +1308,12 @@ function VistaLista({
 // ══════════════════════════════════════════════════════════════
 function PanelDetalleCita({
   cita,
+  accionInicial,
   onCerrar,
   onChange,
 }: {
   cita: AgendaDiaItemDto | null
+  accionInicial?: 'reprogramar' | 'cancelar' | null
   onCerrar: () => void
   onChange: () => void
 }) {
@@ -1286,7 +1347,8 @@ function PanelDetalleCita({
     }
     setCargando(true)
     setError(null)
-    setAccion(null)
+    // Si se llegó desde el menú de 3 puntos, la acción ya viene prearmada.
+    setAccion(accionInicial ?? null)
     setVerDetalle(false)
     api
       .cita(cita.citaId)
@@ -1298,7 +1360,7 @@ function PanelDetalleCita({
       .then(setHistorial)
       .catch((e) => setError(msgError(e)))
       .finally(() => setCargando(false))
-  }, [cita?.citaId])
+  }, [cita?.citaId, accionInicial])
 
   if (!cita) {
     return (

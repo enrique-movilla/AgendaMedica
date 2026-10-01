@@ -96,7 +96,7 @@ export const CLAVE_TERMINO_KEYS: ClaveTermino[] = [
   'MsgSinTurnosDisponibles', 'MsgSeleccionarProfesional', 'MsgSeleccionarCliente', 'MsgSinCitasFecha', 'MsgSinCitasRango',
   'MsgSeleccionarCita',
   'AccionVerDetalle', 'AccionProximoTurno', 'AccionEstado', 'AccionConfirmar', 'AccionIniciarAtencion',
-  'AccionNoAsistio', 'AccionMarcarRealizada', 'AccionReprogramar', 'AccionCancelarCita',
+  'AccionNoAsistio', 'AccionMarcarRealizada', 'AccionReprogramar', 'AccionCancelarCita', 'AccionDuplicar',
   'BtnVolverAgenda', 'BtnConfirmarAccion', 'BtnCancelar',   'BtnUnirseTeams', 'BtnOk', 'BtnConfirmarCancelacion',
   'LabelAcciones', 'LabelNuevaFechaHora', 'LabelMotivoOpcional', 'LabelMotivoCancelacion',
   'LabelEspecificarMotivo', 'LabelHistorial',

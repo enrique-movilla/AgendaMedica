@@ -178,6 +178,7 @@ public enum ClaveTermino : byte
     AccionIniciarAtencion  = 81,
     AccionReprogramar      = 82,
     AccionCancelarCita     = 83,
+    AccionDuplicar         = 91,
     DetallePaciente        = 84,
     DetalleProfesional     = 85,
     DetalleTipoCita        = 86,

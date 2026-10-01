@@ -38,7 +38,7 @@ const NUM_A_CLAVE: Record<number, ClaveTermino> = {
   80: 'AccionConfirmar', 81: 'AccionIniciarAtencion', 82: 'AccionReprogramar',
   83: 'AccionCancelarCita', 84: 'DetallePaciente', 85: 'DetalleProfesional',
   86: 'DetalleTipoCita', 87: 'DetalleAseguradora', 88: 'DetalleRegimen',
-  89: 'DetalleMotivo', 90: 'DetalleObservaciones',
+  89: 'DetalleMotivo', 90: 'DetalleObservaciones', 91: 'AccionDuplicar',
 }
 
 // ── Valor por defecto para cuando no hay proveedor (evita crashes) ──
@@ -149,6 +149,7 @@ const DEFAULT_VALUES: Record<ClaveTermino, string> = {
   AccionMarcarRealizada: 'Marcar realizada',
   AccionReprogramar: 'Reprogramar',
   AccionCancelarCita: 'Cancelar Cita',
+  AccionDuplicar: 'Duplicar',
   BtnVolverAgenda: 'Volver a la agenda',
   BtnConfirmarAccion: 'Confirmar acción',
   BtnCancelar: 'Cancelar',
